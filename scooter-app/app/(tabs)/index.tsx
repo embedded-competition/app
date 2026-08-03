@@ -1,8 +1,10 @@
 // 실시간 화면 (U1 B안): 지도 → 상태 리본(문구·위험도 바·진행 단계) → 채널 카드 그리드 → 모듈 상태.
 // planning/prototypes/b-live-monitor.html 화면 1을 그대로 옮긴 것 — 문구·수치는 mocks/channels.ts.
 import { router } from "expo-router";
+import { useEffect } from "react";
 import { ScrollView, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Location from "expo-location";
 import { colors, type ColorTokens } from "@/constants/tokens";
 import { useAppState } from "@/hooks/useAppState";
 import { LiveBadge } from "@/components/badges/LiveBadge";
@@ -18,6 +20,11 @@ export default function LiveScreen() {
   const insets = useSafeAreaInsets();
   const { state, setState } = useAppState();
   const content = STATE_CONTENT[state];
+
+  // 지도의 locationTrackingMode="Follow"가 실제로 위치를 따라가려면 권한이 먼저 있어야 한다.
+  useEffect(() => {
+    Location.requestForegroundPermissionsAsync().catch(() => {});
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bgAlt }}>
