@@ -10,19 +10,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { colors, type ColorTokens } from "@/constants/tokens";
 import { useAppState } from "@/contexts/AppStateContext";
+import { useDevice } from "@/contexts/DeviceContext";
+import { isDevBypassMac } from "@/services/deviceRegistry";
 import { LiveBadge } from "@/components/badges/LiveBadge";
 import { DevStateToggle } from "@/components/dev/DevStateToggle";
 import { NoDataState } from "@/components/dev/NoDataState";
 import { DeviceMap } from "@/components/map/DeviceMap";
 import { StatusRibbon } from "@/components/ribbon/StatusRibbon";
 import { ChannelCard } from "@/components/channel/ChannelCard";
-import { ADDRESS_MAIN, CHANNELS, MODULE_STATUS, OWNER_NAME, STATE_CONTENT } from "@/mocks/channels";
+import { ADDRESS_MAIN, CHANNELS, MODULE_STATUS, STATE_CONTENT } from "@/mocks/channels";
 
 export default function LiveScreen() {
   const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
   const { state, isLive, setDevState } = useAppState();
+  const { pairedMac } = useDevice();
 
   // 지도의 locationTrackingMode="Follow"가 실제로 위치를 따라가려면 권한이 먼저 있어야 한다.
   useEffect(() => {
@@ -37,7 +40,7 @@ export default function LiveScreen() {
           { backgroundColor: t.bgNormal, borderBottomColor: t.lineWeak, paddingTop: insets.top + 8 },
         ]}
       >
-        <Text style={[styles.title, { color: t.labelStrong }]}>{OWNER_NAME}의 킥보드</Text>
+        <Text style={[styles.title, { color: t.labelStrong }]}>내 킥보드</Text>
         <LiveBadge status={isLive ? "live" : state === null ? "offline" : "preview"} />
       </View>
 
@@ -58,7 +61,12 @@ export default function LiveScreen() {
             <DeviceMap level={STATE_CONTENT[state].pinLevel} addrMain={ADDRESS_MAIN} addrSub={STATE_CONTENT[state].addr2} />
 
             <View style={styles.padH}>
-              <StatusRibbon content={STATE_CONTENT[state]} />
+              <StatusRibbon
+                content={STATE_CONTENT[state]}
+                onReportPress={() => {
+                  if (STATE_CONTENT[state].danger) router.push("/alarm");
+                }}
+              />
 
               <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>
                 센서 채널{" "}
@@ -83,7 +91,11 @@ export default function LiveScreen() {
 
               <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>모듈 상태</Text>
               <View style={[styles.table, { borderColor: t.lineWeak }]}>
-                <Row label="기기 번호" value={MODULE_STATUS.nodeId} t={t} />
+                <Row
+                  label="기기 번호"
+                  value={isDevBypassMac(pairedMac) ? "개발용 미리보기" : (pairedMac ?? MODULE_STATUS.nodeId)}
+                  t={t}
+                />
                 <Row label="감지 모듈 배터리" value={MODULE_STATUS.battery} t={t} />
                 <Row label="연결 상태" value={MODULE_STATUS.connection} t={t} />
                 <Row label="센서 점검" value={state === "alarm" ? "이상 없음 · 경보 중" : "이상 없음"} t={t} last />

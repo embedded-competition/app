@@ -74,10 +74,32 @@ interface TelemetrySource {
 | [O8](../../../planning/decisions/open-questions.md#o8) | 경보 해제 권한/경로 | 해제 버튼 비활성 | `ack` downlink API 필요 (서버 → LoRa) |
 | [O9](../../../planning/decisions/open-questions.md#o9) | 압력 채널 센서 종류 | `pressure` 필드 목데이터로만 존재 | 센서 확정 후 실측 연동 |
 
-## 6. 변경 관리
+## 6. 기기 등록 (페어링)
+
+텔레메트리를 받으려면 그 전에 **어떤 킥보드인지**부터 정해져야 한다. 사용자가 점검장비(MCU) 라벨의 MAC 주소를 앱에 입력하면 서버가 그 MAC으로 킥보드를 계정에 연동한다 — 등록 전에는 앱이 아예 탭 화면을 안 띄우고 등록 화면만 보여준다(`app/_layout.tsx`).
+
+```ts
+interface DeviceRegistryResult {
+  ok: boolean;
+  error?: string;
+}
+
+interface DeviceRegistry {
+  /** mac은 "AA:BB:CC:DD:EE:FF" 형식으로 정규화된 값(services/deviceRegistry.ts의 normalizeMac). */
+  register(mac: string): Promise<DeviceRegistryResult>;
+}
+```
+
+- 지금은 `localOnlyDeviceRegistry`가 항상 `{ ok: true }`를 반환하고 AsyncStorage에만 저장한다 — 서버 검증이 전혀 없다.
+- 실 서버가 생기면 이 계약대로 `POST /devices/pair { mac }` 같은 엔드포인트를 만들면 된다. 성공 시 서버가 뭘 더 돌려줘야 하는지(예: `deviceId`, `nickname`, 이미 다른 계정에 등록된 MAC이면 어떤 에러 코드인지)는 아직 안 정했다 — 여러 대 관리([O4](../../../planning/decisions/open-questions.md#o4))와도 맞물리는 지점이라 서버 설계 시 같이 정할 것.
+- MAC 하나 = 킥보드 한 대라는 전제다. 관리실이 여러 대를 관리하는 시나리오([O4](../../../planning/decisions/open-questions.md#o4))로 가면 이 인터페이스에 계정↔기기 다대다 관계가 추가돼야 한다.
+- 개발 모드(`__DEV__`)에서는 `"0000"`을 입력하면 실제 MAC 검증 없이 고정 값(`00:00:00:00:00:00`)으로 즉시 등록되고 미리보기 화면으로 들어간다. 프로덕션 빌드에서는 이 분기가 번들에서 아예 빠진다 — 배포판에 우회 코드가 남을 걱정은 안 해도 된다.
+
+## 7. 변경 관리
 
 이 문서는 draft다. 서버 API가 실제로 정해지면:
 1. `types/telemetry.ts`를 확정된 페이로드에 맞게 갱신
 2. `services/telemetrySource.ts`에 실제 구현체(REST/WebSocket) 추가, `noTelemetrySource`는 개발/오프라인 폴백으로만 남김
-3. 이 문서의 표를 "미착수/계획" → "있음"으로 갱신
-4. `mocks/channels.ts`의 하드코딩 문구를 §3.1 결정에 따라 서버 응답 매핑으로 교체
+3. `services/deviceRegistry.ts`에 실제 HTTP 구현체 추가, `localOnlyDeviceRegistry`는 폴백으로만 남김
+4. 이 문서의 표를 "미착수/계획" → "있음"으로 갱신
+5. `mocks/channels.ts`의 하드코딩 문구를 §3.1 결정에 따라 서버 응답 매핑으로 교체

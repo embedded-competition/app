@@ -9,9 +9,10 @@
 
 **화면 코드는 [`planning/prototypes/b-live-monitor.html`](../../planning/prototypes/b-live-monitor.html)(B안 채택본)을 1:1로 옮긴 것이다.** 레이아웃·문구·수치·색을 임의로 바꾸지 말고, 바꿔야 하면 프로토타입 HTML도 같이 고치거나 왜 갈라지는지 여기 적어둘 것.
 
-## 지금 상태 (2026-08-03 기준)
+## 지금 상태 (2026-08-04 기준)
 
 - 임베디드 전송 데이터 구조가 **아직 확정 전** — 이게 앱 필드·서버 스키마의 선행 블로커([C4](../../planning/decisions/collaboration.md#c4)). 그래서 지금 화면은 `mocks/channels.ts`의 목데이터로만 돌아간다.
+- 앱 진입 시 **기기 등록(맥주소 페어링)이 선행 게이트**다 — 등록 전에는 탭 화면 자체가 안 뜨고 `PairingForm`만 보인다. 서버가 없어서 지금은 로컬 저장 + 무조건 성공 처리하는 스텁(`services/deviceRegistry.ts`)이다.
 - 로드맵: ~8/10 1차 개발+QA(앱·서버·펌웨어) 목표. 시간 여유가 크지 않다.
 - 화면 UX는 **B안으로 확정**됐지만([U1](../../planning/decisions/app-ux.md#u1)), 데이터 모델에 영향을 주는 8가지는 아직 미정이다 → 아래 "열린 결정" 참고.
 
@@ -28,13 +29,14 @@
 
 ```
 app/                        expo-router 파일 기반 라우팅 (화면만, 로직은 두지 않는다)
-  _layout.tsx                루트 Stack: (tabs) + detail/[channel] + alarm(fullScreenModal)
+  _layout.tsx                루트 Stack: 기기 미등록이면 PairingForm만, 등록됐으면 (tabs) + detail/[channel] + alarm + pairing
+  pairing.tsx                 기기 등록/변경 (설정 탭에서 재진입용 — 최초 게이트는 _layout.tsx가 라우팅 없이 직접 띄움)
   (tabs)/
     _layout.tsx               하단 탭: 실시간·기록·통계·설정 (4탭, 프로토타입 그대로 — O5 참고)
     index.tsx                 실시간 — 지도 → 상태 리본 → 채널 카드 그리드 → 모듈 상태
     record.tsx                기록 — 요약 카드 + 이벤트 리스트
     stats.tsx                  통계 — 미설계 안내만 (O5)
-    settings.tsx               설정 — 알림/자동차단/위치등록/경보해제/모듈상태
+    settings.tsx               설정 — 기기등록/테마/알림/자동차단/위치등록/경보해제
   detail/[channel].tsx        항목 상세 — 판정 → 요약 → 설명 → 게이지 → 추이 → 판단근거 → 비교 → 원본수치(접이식)
   alarm.tsx                   경보 전체화면
 
@@ -42,6 +44,7 @@ components/                 화면 조립용 UI 블록. 화면(app/)에서 콘�
   badges/LiveBadge.tsx        상단 연결 상태 배지 — live(LIVE 펄스)/preview(목데이터)/offline(연결 안 됨) 3단
   dev/DevStateToggle.tsx      미리보기 중 정상/주의/경보 전환 — 서버 없는 지금만 쓰는 개발용, 실 연동 후 삭제
   dev/NoDataState.tsx         state===null(연결된 기기 없음)일 때 보여주는 빈 화면 + 미리보기 진입 버튼
+  pairing/PairingForm.tsx     맥주소 입력 폼. 최초 게이트와 설정 탭 재등록 화면이 같이 씀
   map/DeviceMap.tsx           네이버 지도(NaverMapView) + 위치 추적(Follow) + 주소 오버레이 — 네이티브 전용
   map/DeviceMap.web.tsx       웹 전용 폴백. SVG 개략도 지도 + 핀 halo 펄스 (Metro가 웹 빌드에서 자동으로 이 파일을 씀)
   ribbon/StatusRibbon.tsx     상태 문구 + 위험도 바(그라데이션+커서) + 5단 스테퍼
@@ -58,9 +61,11 @@ constants/tokens.ts         디자인 토큰(색·radius·경보 명멸 주기).
 types/telemetry.ts          실 서버 페이로드가 정해졌을 때를 위한 참고용 타입(§7 데이터 인벤토리). 아직 화면에서 안 씀
 mocks/channels.ts           화면을 실제로 그리는 데이터 원천 — 6개 채널 × normal/watch/alarm 3상태 콘텐츠, 프로토타입 JS(CH·ST)를 그대로 이식
 services/telemetrySource.ts  앱이 서버로부터 상태를 "받는" 경계. 지금은 아무 것도 보내지 않는 기본 구현만 있음
+services/deviceRegistry.ts   기기 등록(맥주소 페어링)의 서버 경계. MAC 정규화(normalizeMac)와 개발용 우회 코드(DEV_BYPASS_CODE="0000", `__DEV__`로 감싸져 있어 프로덕션엔 안 남음)도 여기 있음. 지금은 로컬 저장만 하고 무조건 성공 처리하는 스텁
 contexts/AppStateContext.tsx  telemetrySource를 구독해서 앱 전체가 공유하는 상태 하나(`AppState | null`). null = 분류할 데이터 없음 — "정상"으로 기본값을 깔지 않는다. 실 데이터가 없을 때만 DevStateToggle 로컬 오버라이드를 씀 (isLive로 구분) — 예전엔 화면마다 useState로 따로 들고 있어서 화면 간 상태가 안 맞는 버그가 있었다
+contexts/DeviceContext.tsx   페어링된 기기(맥주소) 하나. null이면 app/_layout.tsx가 탭 화면 대신 PairingForm을 띄운다 — 텔레메트리보다 앞선 게이트
 contexts/ThemeModeContext.tsx  테마 설정(시스템/라이트/다크). AsyncStorage에 저장, `useScheme()`이 실제 적용될 라이트/다크 값을 돌려준다
-docs/interface.md           앱 ↔ 서버 인터페이스 명세 (서버·임베디드 팀 전달용) — 필드별 상태·화면 사용처 정리
+docs/interface.md           앱 ↔ 서버 인터페이스 명세 (서버·임베디드 팀 전달용) — 필드별 상태·화면 사용처, 기기 등록 API 계약 정리
 ```
 
 **원칙**:
@@ -106,6 +111,7 @@ O1이 정해지면 `DeviceMap.tsx`를 서버가 준 좌표 기반 `camera`(contr
 - **값이 아니라 변화 속도가 우선**([U5](../../planning/decisions/app-ux.md#u5)). "26,412"가 아니라 "평소의 24배 속도". 게이지도 평소/주의/위험 3단만.
 - **원본 수치는 접이식으로만**([U4](../../planning/decisions/app-ux.md#u4)). 개발·디버깅·심사 질의응답용으로 완전히 지우지는 않는다.
 - **경보는 화면 전체가 명멸**([U2](../../planning/decisions/app-ux.md#u2)). ALARM 1.05초 강하게, WATCH 2.6초 은은하게. reduce-motion 사용자는 고정 톤 — 이 대응은 아직 미구현(`AlarmPulseOverlay`에 TODO로 표시).
+- **상태가 ALARM으로 바뀌는 순간 자동으로 경보 화면을 띄운다** — 어느 탭에 있든 상관없이 떠야 해서 `app/_layout.tsx`(루트)에서 `state`를 감시하다가 `"alarm"`으로 처음 바뀔 때만(rising edge) `router.push("/alarm")`을 부른다. 계속 ALARM 상태라고 반복해서 밀어넣지는 않는다 — 사용자가 "닫기"로 나가면 그 상태로 둔다. `StatusRibbon`의 신고 버튼(`onReportPress`)도 danger 상태일 때 같은 화면으로 이동한다 — 리본의 버튼 색만 바뀌고 아무 동작도 없는 상태로 두지 말 것.
 - **색은 항상 `constants/tokens.ts`를 통해서만**. raw hex를 화면 코드에 직접 쓰지 않는다.
 - **다크모드는 설정 탭에서 시스템/라이트/다크 중 고를 수 있다** — `contexts/ThemeModeContext.tsx`(`ThemeModeProvider`)가 선택값을 AsyncStorage에 저장하고, 실제 적용될 라이트/다크 값(`ColorScheme`)을 계산한다. **화면 코드는 `react-native`의 `useColorScheme()`을 직접 쓰지 말고 항상 `useScheme()`(from `@/contexts/ThemeModeContext`)을 쓸 것** — 그래야 사용자가 고른 값이 반영된다. 탭바·헤더 같은 네비게이션 크롬은 `app/_layout.tsx`의 `ThemeProvider`가 이 값을 받아서 처리한다. `colors.light`/`colors.dark`를 하드코딩하지 말 것(예외: `alarm.tsx`처럼 배경 자체가 고정 색인 화면도 텍스트·보조색은 `useScheme()`을 따라가게 했다).
 - **ALARM은 자동 해제 없음**([A7](../../planning/decisions/algorithm.md#a7)). 해제 버튼을 만들 때 "그냥 누르면 꺼지는" 동작을 넣지 말 것 — 지금은 경로 자체가 미설계라 비활성 상태로 둔다([O8](../../planning/decisions/open-questions.md#o8)).
@@ -133,6 +139,7 @@ O1이 정해지면 `DeviceMap.tsx`를 서버가 준 좌표 기반 `camera`(contr
 |---|---|---|
 | [O1](../../planning/decisions/open-questions.md#o1) | 위치를 어떻게 잡나 (GPS/등록위치/게이트웨이) | `DeviceMap`이 **폰 자체 GPS**로 카메라를 추적(`setLocationTrackingMode("Follow")`) — 킥보드 모듈의 실제 위치 소스가 아니라 임시 대역. O1 확정되면 서버 좌표 기반 controlled `camera`로 교체 |
 | [O2](../../planning/decisions/open-questions.md#o2) | 노드가 판단 근거(dev·slope·시그니처)를 전송할지 | 판단 근거 3요소를 `mocks/channels.ts`에 목데이터로 채워둠 — 실전송 여부에 따라 항목 상세 화면 하단 구조가 바뀔 수 있음 |
+| [O4](../../planning/decisions/open-questions.md#o4) | 기기 여러 대 관리 (개인 1대 vs 관리실 다중) | `DeviceContext`가 맥주소 1개만 저장 — 계정당 기기 1:1 전제. 다중 기기로 가면 `services/deviceRegistry.ts`·`DeviceContext`를 계정↔기기 목록 구조로 바꿔야 함 |
 | [O5](../../planning/decisions/open-questions.md#o5) | 하단 탭 3개 vs 4개(+통계) | 프로토타입과 동일하게 4탭 구현, `stats.tsx`는 안내 문구만. 3탭으로 확정되면 `(tabs)/_layout.tsx`·`stats.tsx` 정리 |
 | [O8](../../planning/decisions/open-questions.md#o8) | 경보 해제 권한/경로 | `alarm.tsx`의 해제 버튼은 비활성 상태로만 존재 |
 | [O9](../../planning/decisions/open-questions.md#o9) | 압력 채널 센서(BMP390/strain gauge) | `pres` 채널은 목데이터로만 존재, 실측 연동 없음 |
