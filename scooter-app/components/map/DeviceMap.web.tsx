@@ -1,7 +1,8 @@
 // 웹 전용 폴백. @mj-studio/react-native-naver-map은 네이티브 Fabric 컴포넌트라 웹 번들에서 동작하지 않는다.
 // Metro가 .web.tsx를 우선 선택하므로 `npm run web`에서는 이 프로토타입 SVG 버전이 대신 뜬다 — 실기기 확인은 DeviceMap.tsx(네이버 지도) 쪽에서.
 import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import Svg, { Path, Rect, Text as SvgText } from "react-native-svg";
 import { colors } from "@/constants/tokens";
 import type { Level } from "@/mocks/channels";
@@ -21,7 +22,7 @@ export function DeviceMap({
   addrMain: string;
   addrSub: string;
 }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const pinColor = t[LEVEL_TONE[level]];
   const halo = useRef(new Animated.Value(0)).current;

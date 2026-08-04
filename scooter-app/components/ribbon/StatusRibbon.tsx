@@ -1,7 +1,8 @@
 // 실시간 화면 상단 리본: 상태 문구 + 점검요청 버튼, 그라데이션 위험도 바 + 커서, 5단 진행 스테퍼.
 // U1(화면 구조)·U6(문구 3단)을 그대로 반영 — 문구/수치는 mocks/channels.ts의 STATE_CONTENT.
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 import { STEPPER_LABELS, type StateContent } from "@/mocks/channels";
 
@@ -12,7 +13,7 @@ export function StatusRibbon({
   content: StateContent;
   onReportPress?: () => void;
 }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
 
   return (

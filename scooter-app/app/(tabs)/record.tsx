@@ -1,12 +1,13 @@
 // 기록 화면. O5 의견: 통계 탭을 따로 두지 않고 상단 요약 카드로 흡수.
 // events[]/suppressed[]/actions[]는 서버가 생성 (C5) — 지금은 목데이터.
-import { FlatList, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/tokens";
 import { mockEvents } from "@/mocks/channels";
 
 export default function RecordScreen() {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
 

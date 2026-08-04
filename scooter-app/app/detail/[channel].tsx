@@ -2,9 +2,10 @@
 // 게이지·차트·판단근거·비교는 상태 단위(STATE_CONTENT) 공통 템플릿이고, 채널마다 다른 건
 // 이름·설명·각주뿐이다 — 프로토타입도 배터리 가스(voc) 채널 하나만 실제로 디자인했기 때문에 그 구조를 그대로 따른다.
 import { Stack, useLocalSearchParams } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
-import { useAppState } from "@/hooks/useAppState";
+import { useAppState } from "@/contexts/AppStateContext";
 import { CHANNELS, CHANNEL_EXPLAIN, CHANNEL_FOOTNOTE, OWNER_NAME, STATE_CONTENT } from "@/mocks/channels";
 import { RichText } from "@/components/common/RichText";
 import { ChannelGauge } from "@/components/channel/ChannelGauge";
@@ -18,9 +19,9 @@ const ACC_KEY = { ok: "accGreen", warn: "accOrange", bad: "accRed" } as const;
 
 export default function ChannelDetailScreen() {
   const { channel: channelKey } = useLocalSearchParams<{ channel: string }>();
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
-  const { state } = useAppState();
+  const { state, isLive } = useAppState();
 
   const channel = CHANNELS.find((c) => c.key === channelKey) ?? CHANNELS[0];
   const content = STATE_CONTENT[state];
@@ -31,6 +32,14 @@ export default function ChannelDetailScreen() {
     <>
       <Stack.Screen options={{ title: channel.name }} />
       <ScrollView style={{ backgroundColor: t.bgAlt }} contentContainerStyle={styles.content}>
+        {!isLive && (
+          <View style={[styles.mockNotice, { backgroundColor: t.fillNormal }]}>
+            <Text style={{ color: t.labelAlt, fontSize: 11, fontWeight: "600" }}>
+              목데이터 · 실시간 연결 없음
+            </Text>
+          </View>
+        )}
+
         <View style={styles.head}>
           <Text style={[styles.question, { color: t.labelStrong }]}>
             {OWNER_NAME} 킥보드의{"\n"}
@@ -99,6 +108,7 @@ export default function ChannelDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: 18, paddingTop: 10, paddingBottom: 32 },
+  mockNotice: { alignSelf: "center", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 4 },
   head: { alignItems: "center", paddingVertical: 8 },
   question: { fontSize: 16, fontWeight: "600", textAlign: "center", lineHeight: 24 },
   verdictRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },

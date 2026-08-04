@@ -1,10 +1,11 @@
 // 항목 상세 "최근 1분 동안" 추이 차트. 프로토타입 .chart(영역+선+점선 기준선)를 react-native-svg로 이식.
-import { StyleSheet, Text, View, useColorScheme } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import Svg, { Line, Polygon, Polyline } from "react-native-svg";
 import { colors } from "@/constants/tokens";
 
 export function TrendChart({ series, tone }: { series: number[]; tone: string }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const W = 320;
   const H = 150;

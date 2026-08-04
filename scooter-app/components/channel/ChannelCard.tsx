@@ -1,5 +1,6 @@
 // 실시간 화면 채널 그리드 카드(원형 배지 = "ring"). 프로토타입 .gcard를 그대로 이식.
-import { Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 import type { ChannelDef, ChannelStateContent, Level } from "@/mocks/channels";
 
@@ -24,7 +25,7 @@ export function ChannelCard({
   content: ChannelStateContent;
   onPress: () => void;
 }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const tone = t[LEVEL_TONE[content.lv]];
   const acc = t[LEVEL_ACC[content.lv]];

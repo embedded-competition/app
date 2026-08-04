@@ -2,12 +2,14 @@
 // 해제는 A7(latch, 자동 해제 없음)·O8(권한/downlink 경로 미설계)이라 지금은 비활성.
 import { router } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/tokens";
 import { AlarmPulseOverlay } from "@/components/alarm/AlarmPulseOverlay";
 
 export default function AlarmScreen() {
-  const t = colors.light;
+  const scheme = useScheme();
+  const t = colors[scheme];
   const insets = useSafeAreaInsets();
 
   return (

@@ -1,11 +1,12 @@
 // O5 열린 결정: 통계 탭으로 낼 수 있는 게 마땅치 않다 (SoH·잔량 측정 불가).
 // 3탭으로 줄이고 기록 탭 요약 카드로 흡수하는 안이 유력 — 확정 전까지 자리만 비워둔다.
-import { StyleSheet, Text, View, useColorScheme } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/tokens";
 
 export default function StatsScreen() {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
 

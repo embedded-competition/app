@@ -1,5 +1,6 @@
 // 항목 상세 "지금 얼마나 새고 있나요" 게이지. 프로토타입 .gauge(track+knob+pill)를 그대로 이식.
-import { StyleSheet, Text, View, useColorScheme } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 import type { Level } from "@/mocks/channels";
 
@@ -20,7 +21,7 @@ export function ChannelGauge({
   pillTitle: string;
   pillValue: string;
 }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const tone = t[TONE[level]];
 

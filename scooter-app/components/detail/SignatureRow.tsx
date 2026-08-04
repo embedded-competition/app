@@ -1,5 +1,6 @@
 // "경보는 이렇게 판단합니다" 3요소(급변/지속/무회복, A4) 박스. 프로토타입 .sig를 이식.
-import { StyleSheet, Text, View, useColorScheme } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 import { SIG_LABELS } from "@/mocks/channels";
 
@@ -10,7 +11,7 @@ export function SignatureRow({
   sig: readonly [string, string, string];
   sigOn: readonly [boolean, boolean, boolean];
 }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
 
   return (

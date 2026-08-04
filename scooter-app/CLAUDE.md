@@ -56,21 +56,26 @@ components/                 화면 조립용 UI 블록. 화면(app/)에서 콘�
 constants/tokens.ts         디자인 토큰(색·radius·경보 명멸 주기). b-live-monitor.html의 CSS 변수를 그대로 이식
 types/telemetry.ts          실 서버 페이로드가 정해졌을 때를 위한 참고용 타입(§7 데이터 인벤토리). 아직 화면에서 안 씀
 mocks/channels.ts           화면을 실제로 그리는 데이터 원천 — 6개 채널 × normal/watch/alarm 3상태 콘텐츠, 프로토타입 JS(CH·ST)를 그대로 이식
-hooks/useAppState.ts        정상/주의/경보 상태 하나를 실시간·상세·경보 화면이 공유하는 경계
+services/telemetrySource.ts  앱이 서버로부터 상태를 "받는" 경계. 지금은 아무 것도 보내지 않는 기본 구현만 있음
+contexts/AppStateContext.tsx  telemetrySource를 구독해서 앱 전체가 공유하는 상태 하나. 실 데이터가 없을 때만 DevStateToggle 로컬 오버라이드를 씀 (isLive로 구분) — 예전엔 화면마다 useState로 따로 들고 있어서 화면 간 상태가 안 맞는 버그가 있었다
+contexts/ThemeModeContext.tsx  테마 설정(시스템/라이트/다크). AsyncStorage에 저장, `useScheme()`이 실제 적용될 라이트/다크 값을 돌려준다
+docs/interface.md           앱 ↔ 서버 인터페이스 명세 (서버·임베디드 팀 전달용) — 필드별 상태·화면 사용처 정리
 ```
 
 **원칙**:
-- 화면(`app/`)은 `mocks/channels.ts`의 콘텐츠를 컴포넌트에 넘기기만 하고, 판정 로직(임계값 계산 등)은 절대 클라이언트에 두지 않는다 — 판정은 노드/서버 책임([A1](../../planning/decisions/algorithm.md#a1), [C5](../../planning/decisions/collaboration.md#c5)).
+- 화면(`app/`)은 `mocks/channels.ts`의 콘텐츠를 컴포넌트에 넘기기만 하고, 판정 로직(임계값 계산 등)은 절대 클라이언트에 두지 않는다 — 판정은 노드/서버 책임([A1](../../planning/decisions/algorithm.md#a1), [C5](../../planning/decisions/collaboration.md#c5)). 상태는 항상 `services/telemetrySource.ts`를 통해서만 "받고", 클라이언트가 raw 값으로 계산하지 않는다.
 - 항목 상세 화면의 게이지·차트·판단근거·비교 섹션은 **채널별이 아니라 상태(정상/주의/경보) 단위** 공통 콘텐츠다 — 프로토타입도 배터리 가스(voc) 채널 하나만 실제로 디자인했고 나머지 채널은 이름·설명·각주만 다르다. 이 구조를 임의로 채널별로 쪼개지 말 것.
+- 서버 연동 계약(필드별 상태·화면 사용처·문구 생성 책임 문제)은 [`docs/interface.md`](docs/interface.md)에 따로 정리했다 — 서버/임베디드 팀과 논의할 때는 이 문서를 기준으로 한다.
 
 ## 데이터 흐름과 목데이터
 
-서버가 아직 없다(C4). 지금 데이터 원천은 두 갈래다.
+서버가 아직 없다(C4). 지금 데이터 원천은 세 갈래다.
 
-- **`mocks/channels.ts`** — 지금 화면을 실제로 그리는 데이터. 프로토타입 HTML의 `CH`(6채널)·`ST`(상태별 리본/게이지/차트/판단근거 문구)를 그대로 옮겼다. `hooks/useAppState.ts`가 정상/주의/경보 중 하나를 들고 있고, 화면은 `STATE_CONTENT[state]`·`CHANNELS[i].states[state]`를 읽어서 그린다.
+- **`services/telemetrySource.ts`** — 앱이 상태를 "받는" 유일한 경계(`TelemetrySource.subscribe`). 지금은 `noTelemetrySource`(아무 것도 방출 안 함)만 있다. `contexts/AppStateContext.tsx`가 이걸 구독해서 **앱 전체가 공유하는** 상태 하나를 만든다 — 값이 없으면(`isLive=false`) `DevStateToggle`(실시간 화면 최상단)의 로컬 오버라이드로 화면을 채우고, `LiveBadge`·항목 상세 상단 배너가 "목데이터"라고 정직하게 표시한다. 실 데이터가 들어오면 오버라이드는 자동 무시된다. **새 화면에서 상태를 쓸 땐 항상 `useAppState()`(from `@/contexts/AppStateContext`)를 쓸 것** — 화면마다 따로 로컬 상태를 만들면 DevStateToggle이 다른 화면에 반영되지 않는다.
+- **`mocks/channels.ts`** — 지금 화면을 실제로 그리는 콘텐츠. 프로토타입 HTML의 `CH`(6채널)·`ST`(상태별 리본/게이지/차트/판단근거 문구)를 그대로 옮겼다. 화면은 `STATE_CONTENT[state]`·`CHANNELS[i].states[state]`를 읽어서 그린다.
 - **`types/telemetry.ts`** — 실 서버 페이로드가 나왔을 때 쓸 참고용 스키마(§7 데이터 인벤토리 그대로 타입화). 아직 어떤 화면도 이 타입을 쓰지 않는다.
 
-실 서버 API가 정해지면: `mocks/channels.ts`의 문구·수치 생성 로직을 서버 응답 매핑으로 교체하고(문구 자체는 C5에 따라 서버가 만들 가능성이 높다), `useAppState.ts`를 폴링/구독으로 바꾼다. 그 전까지 `DevStateToggle`(실시간 화면 최상단)로 세 상태를 직접 눌러보면 된다.
+실 서버 API가 정해지면 [`docs/interface.md`](docs/interface.md)의 계약대로: `telemetrySource.ts`에 실제 구현체(REST/WebSocket)를 추가하고, `mocks/channels.ts`의 문구·수치 생성 로직을 서버 응답 매핑으로 교체한다(문구 자체를 서버가 내려줄지는 interface.md §3.1 참고 — 아직 미정).
 
 ## 지도 설정 (네이버 지도 SDK)
 
@@ -96,6 +101,7 @@ O1이 정해지면 `DeviceMap.tsx`를 서버가 준 좌표 기반 `camera`(contr
 - **원본 수치는 접이식으로만**([U4](../../planning/decisions/app-ux.md#u4)). 개발·디버깅·심사 질의응답용으로 완전히 지우지는 않는다.
 - **경보는 화면 전체가 명멸**([U2](../../planning/decisions/app-ux.md#u2)). ALARM 1.05초 강하게, WATCH 2.6초 은은하게. reduce-motion 사용자는 고정 톤 — 이 대응은 아직 미구현(`AlarmPulseOverlay`에 TODO로 표시).
 - **색은 항상 `constants/tokens.ts`를 통해서만**. raw hex를 화면 코드에 직접 쓰지 않는다.
+- **다크모드는 설정 탭에서 시스템/라이트/다크 중 고를 수 있다** — `contexts/ThemeModeContext.tsx`(`ThemeModeProvider`)가 선택값을 AsyncStorage에 저장하고, 실제 적용될 라이트/다크 값(`ColorScheme`)을 계산한다. **화면 코드는 `react-native`의 `useColorScheme()`을 직접 쓰지 말고 항상 `useScheme()`(from `@/contexts/ThemeModeContext`)을 쓸 것** — 그래야 사용자가 고른 값이 반영된다. 탭바·헤더 같은 네비게이션 크롬은 `app/_layout.tsx`의 `ThemeProvider`가 이 값을 받아서 처리한다. `colors.light`/`colors.dark`를 하드코딩하지 말 것(예외: `alarm.tsx`처럼 배경 자체가 고정 색인 화면도 텍스트·보조색은 `useScheme()`을 따라가게 했다).
 - **ALARM은 자동 해제 없음**([A7](../../planning/decisions/algorithm.md#a7)). 해제 버튼을 만들 때 "그냥 누르면 꺼지는" 동작을 넣지 말 것 — 지금은 경로 자체가 미설계라 비활성 상태로 둔다([O8](../../planning/decisions/open-questions.md#o8)).
 
 ### 용어 매핑 (화면 표기 ↔ 원래 용어)
@@ -140,5 +146,6 @@ npx tsc --noEmit           # 타입체크. app-example/ 아래 에러는 기존 
 ## 의존성 메모
 
 - `react-native-svg`(차트·웹 지도 폴백)와 `expo-linear-gradient`(위험도 바·경보 명멸) — 둘 다 순수 JS/네이티브 뷰라 Expo Go에서도 동작.
-- `@mj-studio/react-native-naver-map` + `expo-build-properties`(네이버 Maven 저장소 주입) + `expo-location`(위치 권한) — 네이티브 모듈이라 **여기부터 Expo Go 이탈, dev-client 필수**. 셋 다 `npx expo install`로 넣은 SDK 54 호환 버전.
+- `@mj-studio/react-native-naver-map` + `expo-build-properties`(네이버 Maven 저장소 주입) + `expo-location`(위치 권한) + `expo-dev-client`(dev-client 빌드용) — 네이티브 모듈이라 **여기부터 Expo Go 이탈, dev-client 필수**. `npx expo install`로 넣은 SDK 54 호환 버전.
+- `@react-native-async-storage/async-storage` — 테마 설정 저장용. 웹도 자체 구현으로 지원해서 `.web.ts` 분기 없이 그대로 쓴다.
 - 설정 파일이 `app.json` → **`app.config.ts`**로 바뀌었다 (네이버 지도 Client ID를 `.env`에서 읽어야 해서). `app.json`을 다시 만들지 말 것 — 설정은 전부 `app.config.ts`에서 관리한다.

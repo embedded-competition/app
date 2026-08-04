@@ -2,11 +2,12 @@
 // planning/prototypes/b-live-monitor.html 화면 1을 그대로 옮긴 것 — 문구·수치는 mocks/channels.ts.
 import { router } from "expo-router";
 import { useEffect } from "react";
-import { ScrollView, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { colors, type ColorTokens } from "@/constants/tokens";
-import { useAppState } from "@/hooks/useAppState";
+import { useAppState } from "@/contexts/AppStateContext";
 import { LiveBadge } from "@/components/badges/LiveBadge";
 import { DevStateToggle } from "@/components/dev/DevStateToggle";
 import { DeviceMap } from "@/components/map/DeviceMap";
@@ -15,10 +16,10 @@ import { ChannelCard } from "@/components/channel/ChannelCard";
 import { ADDRESS_MAIN, CHANNELS, MODULE_STATUS, OWNER_NAME, STATE_CONTENT } from "@/mocks/channels";
 
 export default function LiveScreen() {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
-  const { state, setState } = useAppState();
+  const { state, isLive, setDevState } = useAppState();
   const content = STATE_CONTENT[state];
 
   // 지도의 locationTrackingMode="Follow"가 실제로 위치를 따라가려면 권한이 먼저 있어야 한다.
@@ -35,11 +36,12 @@ export default function LiveScreen() {
         ]}
       >
         <Text style={[styles.title, { color: t.labelStrong }]}>{OWNER_NAME}의 킥보드</Text>
-        <LiveBadge />
+        <LiveBadge live={isLive} />
       </View>
 
-      {/* 서버 연동 전까지 상태를 직접 바꿔보기 위한 개발용 토글. 실 데이터 연동 후 제거. */}
-      <DevStateToggle state={state} onChange={setState} />
+      {/* 실 데이터가 없을 때만 의미 있는 개발용 토글 — telemetrySource가 실제로 값을 보내기 시작하면
+          useAppState가 그 값을 우선하므로 이 토글은 자동으로 무시된다. */}
+      {!isLive && <DevStateToggle state={state} onChange={setDevState} />}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <DeviceMap level={content.pinLevel} addrMain={ADDRESS_MAIN} addrSub={content.addr2} />

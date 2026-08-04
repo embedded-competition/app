@@ -1,11 +1,13 @@
 // 설정 화면 (O5 데이터 매핑): 알림 대상·강도, 플러그 자동차단, 위치 등록(O1), 경보 해제(O8), 모듈 상태.
-import { StyleSheet, Switch, Text, useColorScheme, View } from "react-native";
+import { StyleSheet, Switch, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/tokens";
+import { ThemeModeToggle } from "@/components/settings/ThemeModeToggle";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   return (
     <View style={[styles.row, { borderColor: t.lineWeak }]}>
@@ -16,7 +18,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export default function SettingsScreen() {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
   const [autoPlugCut, setAutoPlugCut] = useState(true);
@@ -24,6 +26,9 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: t.bgAlt, paddingTop: insets.top + 16 }]}>
+      <Row label="화면 테마">
+        <ThemeModeToggle />
+      </Row>
       <Row label="스마트플러그 자동 차단">
         <Switch value={autoPlugCut} onValueChange={setAutoPlugCut} />
       </Row>

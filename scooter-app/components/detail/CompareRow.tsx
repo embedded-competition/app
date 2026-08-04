@@ -1,5 +1,6 @@
 // "같은 모델과 비교" 2열 박스. 프로토타입 .cmp를 이식. 실제로는 fleet 집계(서버) 필요 — 지금은 목데이터.
-import { StyleSheet, Text, View, useColorScheme } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 
 export function CompareRow({
@@ -11,7 +12,7 @@ export function CompareRow({
   mine: string;
   mineColor?: string;
 }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
 
   return (

@@ -21,8 +21,10 @@ const config: ExpoConfig = {
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
+    bundleIdentifier: "com.embeddedcompetition.scooterapp",
   },
   android: {
+    package: "com.embeddedcompetition.scooterapp",
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
       foregroundImage: "./assets/images/android-icon-foreground.png",
@@ -81,6 +83,12 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+  owner: "junholeee",
+  extra: {
+    eas: {
+      projectId: "fa7cc985-7281-406a-9002-9287cf975c72",
+    },
   },
 };
 

@@ -9,7 +9,8 @@
 // 네이티브 전용 컴포넌트라 웹에서는 안 뜬다 — 웹 빌드는 DeviceMap.web.tsx(SVG 플레이스홀더)가 대신 쓰인다.
 // 실행 전 scooter-app/.env에 NAVER_MAP_CLIENT_ID를 채우고 `npx expo prebuild` + dev-client 빌드가 먼저 필요하다 (CLAUDE.md 참고).
 import { useRef } from "react";
-import { StyleSheet, Text, View, useColorScheme } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { NaverMapView, type NaverMapViewRef } from "@mj-studio/react-native-naver-map";
 import { colors } from "@/constants/tokens";
 import type { Level } from "@/mocks/channels";
@@ -25,7 +26,7 @@ export function DeviceMap({
   addrMain: string;
   addrSub: string;
 }) {
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
   const mapRef = useRef<NaverMapViewRef>(null);
 

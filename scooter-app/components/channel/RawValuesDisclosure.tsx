@@ -1,6 +1,7 @@
 // "센서 원본 수치 보기" 접이식 (U4). 일반 사용자에겐 기본 숨김, 개발·벤치·심사 질의응답용으로 남겨둔다.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 
 export function RawValuesDisclosure({
@@ -9,7 +10,7 @@ export function RawValuesDisclosure({
   rows: { label: string; hint: string; value: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  const scheme = useColorScheme() ?? "light";
+  const scheme = useScheme();
   const t = colors[scheme];
 
   return (
