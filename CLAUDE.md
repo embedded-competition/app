@@ -74,7 +74,7 @@ scooter-app/
 **원칙**:
 - 화면(`app/`)은 `mocks/channels.ts`의 콘텐츠를 컴포넌트에 넘기기만 하고, 판정 로직(임계값 계산 등)은 절대 클라이언트에 두지 않는다 — 판정은 노드/서버 책임([A1](../planning/decisions/algorithm.md#a1), [C5](../planning/decisions/collaboration.md#c5)). 상태는 항상 `services/telemetrySource.ts`를 통해서만 "받고", 클라이언트가 raw 값으로 계산하지 않는다.
 - 항목 상세 화면의 게이지·차트·판단근거·비교 섹션은 **채널별이 아니라 상태(정상/주의/경보) 단위** 공통 콘텐츠다 — 프로토타입도 배터리 가스(voc) 채널 하나만 실제로 디자인했고 나머지 채널은 이름·설명·각주만 다르다. 이 구조를 임의로 채널별로 쪼개지 말 것.
-- 서버 연동 계약(필드별 상태·화면 사용처·문구 생성 책임 문제)은 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md)에 따로 정리했다 — 서버/임베디드 팀과 논의할 때는 이 문서를 기준으로 한다.
+- 서버 연동 계약(필드별 상태·화면 사용처·문구 생성 책임 문제)은 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md)에 따로 정리했다 — 서버/임베디드 팀과 논의할 때는 이 문서를 기준으로 한다. 실제 백엔드 엔드포인트 제안은 [`api-spec.md`](api-spec.md)(레포 최상위) 참고 — 둘 다 서버가 없는 지금 상태의 **제안**이지 확정 계약이 아니다.
 
 ## 데이터 흐름과 목데이터
 
