@@ -39,8 +39,9 @@ app/                        expo-router 파일 기반 라우팅 (화면만, 로�
   alarm.tsx                   경보 전체화면
 
 components/                 화면 조립용 UI 블록. 화면(app/)에서 콘텐츠를 받아 그리기만 한다
-  badges/LiveBadge.tsx        상단 LIVE 펄스 배지
-  dev/DevStateToggle.tsx      정상/주의/경보 전환 — 서버 없는 지금만 쓰는 개발용, 실 연동 후 삭제
+  badges/LiveBadge.tsx        상단 연결 상태 배지 — live(LIVE 펄스)/preview(목데이터)/offline(연결 안 됨) 3단
+  dev/DevStateToggle.tsx      미리보기 중 정상/주의/경보 전환 — 서버 없는 지금만 쓰는 개발용, 실 연동 후 삭제
+  dev/NoDataState.tsx         state===null(연결된 기기 없음)일 때 보여주는 빈 화면 + 미리보기 진입 버튼
   map/DeviceMap.tsx           네이버 지도(NaverMapView) + 위치 추적(Follow) + 주소 오버레이 — 네이티브 전용
   map/DeviceMap.web.tsx       웹 전용 폴백. SVG 개략도 지도 + 핀 halo 펄스 (Metro가 웹 빌드에서 자동으로 이 파일을 씀)
   ribbon/StatusRibbon.tsx     상태 문구 + 위험도 바(그라데이션+커서) + 5단 스테퍼
@@ -57,7 +58,7 @@ constants/tokens.ts         디자인 토큰(색·radius·경보 명멸 주기).
 types/telemetry.ts          실 서버 페이로드가 정해졌을 때를 위한 참고용 타입(§7 데이터 인벤토리). 아직 화면에서 안 씀
 mocks/channels.ts           화면을 실제로 그리는 데이터 원천 — 6개 채널 × normal/watch/alarm 3상태 콘텐츠, 프로토타입 JS(CH·ST)를 그대로 이식
 services/telemetrySource.ts  앱이 서버로부터 상태를 "받는" 경계. 지금은 아무 것도 보내지 않는 기본 구현만 있음
-contexts/AppStateContext.tsx  telemetrySource를 구독해서 앱 전체가 공유하는 상태 하나. 실 데이터가 없을 때만 DevStateToggle 로컬 오버라이드를 씀 (isLive로 구분) — 예전엔 화면마다 useState로 따로 들고 있어서 화면 간 상태가 안 맞는 버그가 있었다
+contexts/AppStateContext.tsx  telemetrySource를 구독해서 앱 전체가 공유하는 상태 하나(`AppState | null`). null = 분류할 데이터 없음 — "정상"으로 기본값을 깔지 않는다. 실 데이터가 없을 때만 DevStateToggle 로컬 오버라이드를 씀 (isLive로 구분) — 예전엔 화면마다 useState로 따로 들고 있어서 화면 간 상태가 안 맞는 버그가 있었다
 contexts/ThemeModeContext.tsx  테마 설정(시스템/라이트/다크). AsyncStorage에 저장, `useScheme()`이 실제 적용될 라이트/다크 값을 돌려준다
 docs/interface.md           앱 ↔ 서버 인터페이스 명세 (서버·임베디드 팀 전달용) — 필드별 상태·화면 사용처 정리
 ```
@@ -71,7 +72,12 @@ docs/interface.md           앱 ↔ 서버 인터페이스 명세 (서버·임�
 
 서버가 아직 없다(C4). 지금 데이터 원천은 세 갈래다.
 
-- **`services/telemetrySource.ts`** — 앱이 상태를 "받는" 유일한 경계(`TelemetrySource.subscribe`). 지금은 `noTelemetrySource`(아무 것도 방출 안 함)만 있다. `contexts/AppStateContext.tsx`가 이걸 구독해서 **앱 전체가 공유하는** 상태 하나를 만든다 — 값이 없으면(`isLive=false`) `DevStateToggle`(실시간 화면 최상단)의 로컬 오버라이드로 화면을 채우고, `LiveBadge`·항목 상세 상단 배너가 "목데이터"라고 정직하게 표시한다. 실 데이터가 들어오면 오버라이드는 자동 무시된다. **새 화면에서 상태를 쓸 땐 항상 `useAppState()`(from `@/contexts/AppStateContext`)를 쓸 것** — 화면마다 따로 로컬 상태를 만들면 DevStateToggle이 다른 화면에 반영되지 않는다.
+- **`services/telemetrySource.ts`** — 앱이 상태를 "받는" 유일한 경계(`TelemetrySource.subscribe`). 지금은 `noTelemetrySource`(아무 것도 방출 안 함)만 있다. `contexts/AppStateContext.tsx`가 이걸 구독해서 **앱 전체가 공유하는** 상태 하나(`AppState | null`)를 만든다.
+  - `state === null` — 데이터도 없고 미리보기도 안 고른 상태. 화면은 `NoDataState`("연결된 기기가 없어요" + 미리보기 버튼)를 보여줘야 한다. **절대 "정상"을 기본값으로 깔지 말 것** — 분류 안 된 걸 정상 판정처럼 보여주면 안 된다.
+  - `state !== null && !isLive` — 개발자가 `NoDataState`/`DevStateToggle`로 미리보기를 고른 상태. `LiveBadge status="preview"`("목데이터")로 정직하게 표시.
+  - `isLive === true` — 실 데이터. `LiveBadge status="live"`.
+
+  **새 화면에서 상태를 쓸 땐 항상 `useAppState()`(from `@/contexts/AppStateContext`)를 쓰고, `state`가 `null`일 수 있다는 걸 화면 진입점에서 먼저 처리할 것** — 화면마다 따로 로컬 상태를 만들거나 `STATE_CONTENT[state]`를 null 체크 없이 바로 인덱싱하지 말 것.
 - **`mocks/channels.ts`** — 지금 화면을 실제로 그리는 콘텐츠. 프로토타입 HTML의 `CH`(6채널)·`ST`(상태별 리본/게이지/차트/판단근거 문구)를 그대로 옮겼다. 화면은 `STATE_CONTENT[state]`·`CHANNELS[i].states[state]`를 읽어서 그린다.
 - **`types/telemetry.ts`** — 실 서버 페이로드가 나왔을 때 쓸 참고용 스키마(§7 데이터 인벤토리 그대로 타입화). 아직 어떤 화면도 이 타입을 쓰지 않는다.
 

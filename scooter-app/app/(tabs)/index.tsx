@@ -1,8 +1,10 @@
 // 실시간 화면 (U1 B안): 지도 → 상태 리본(문구·위험도 바·진행 단계) → 채널 카드 그리드 → 모듈 상태.
 // planning/prototypes/b-live-monitor.html 화면 1을 그대로 옮긴 것 — 문구·수치는 mocks/channels.ts.
+//
+// state가 null(연결된 기기 없음)이면 절대 "정상"으로 보여주지 않는다 — NoDataState로 대체한다.
 import { router } from "expo-router";
 import { useEffect } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useScheme } from "@/contexts/ThemeModeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
@@ -10,6 +12,7 @@ import { colors, type ColorTokens } from "@/constants/tokens";
 import { useAppState } from "@/contexts/AppStateContext";
 import { LiveBadge } from "@/components/badges/LiveBadge";
 import { DevStateToggle } from "@/components/dev/DevStateToggle";
+import { NoDataState } from "@/components/dev/NoDataState";
 import { DeviceMap } from "@/components/map/DeviceMap";
 import { StatusRibbon } from "@/components/ribbon/StatusRibbon";
 import { ChannelCard } from "@/components/channel/ChannelCard";
@@ -20,7 +23,6 @@ export default function LiveScreen() {
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
   const { state, isLive, setDevState } = useAppState();
-  const content = STATE_CONTENT[state];
 
   // 지도의 locationTrackingMode="Follow"가 실제로 위치를 따라가려면 권한이 먼저 있어야 한다.
   useEffect(() => {
@@ -36,46 +38,60 @@ export default function LiveScreen() {
         ]}
       >
         <Text style={[styles.title, { color: t.labelStrong }]}>{OWNER_NAME}의 킥보드</Text>
-        <LiveBadge live={isLive} />
+        <LiveBadge status={isLive ? "live" : state === null ? "offline" : "preview"} />
       </View>
 
-      {/* 실 데이터가 없을 때만 의미 있는 개발용 토글 — telemetrySource가 실제로 값을 보내기 시작하면
-          useAppState가 그 값을 우선하므로 이 토글은 자동으로 무시된다. */}
-      {!isLive && <DevStateToggle state={state} onChange={setDevState} />}
+      {state === null ? (
+        <NoDataState onPreview={setDevState} />
+      ) : (
+        <>
+          {!isLive && (
+            <View style={styles.previewBar}>
+              <DevStateToggle state={state} onChange={setDevState} />
+              <Pressable onPress={() => setDevState(null)}>
+                <Text style={{ color: t.labelAlt, fontSize: 12 }}>미리보기 종료</Text>
+              </Pressable>
+            </View>
+          )}
 
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <DeviceMap level={content.pinLevel} addrMain={ADDRESS_MAIN} addrSub={content.addr2} />
+          <ScrollView contentContainerStyle={styles.scroll}>
+            <DeviceMap level={STATE_CONTENT[state].pinLevel} addrMain={ADDRESS_MAIN} addrSub={STATE_CONTENT[state].addr2} />
 
-        <View style={styles.padH}>
-          <StatusRibbon content={content} />
+            <View style={styles.padH}>
+              <StatusRibbon content={STATE_CONTENT[state]} />
 
-          <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>
-            센서 채널 <Text style={{ fontSize: 11, fontWeight: "500", color: t.labelAlt }}>{content.rateLabel}</Text>
-          </Text>
-          <Text style={[styles.sectionSub, { color: t.labelAlt }]}>
-            탭하면 자세히 볼 수 있어요 · 양보다 얼마나 빠르게 변하는지를 봅니다
-          </Text>
+              <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>
+                센서 채널{" "}
+                <Text style={{ fontSize: 11, fontWeight: "500", color: t.labelAlt }}>
+                  {STATE_CONTENT[state].rateLabel}
+                </Text>
+              </Text>
+              <Text style={[styles.sectionSub, { color: t.labelAlt }]}>
+                탭하면 자세히 볼 수 있어요 · 양보다 얼마나 빠르게 변하는지를 봅니다
+              </Text>
 
-          <View style={styles.grid}>
-            {CHANNELS.map((ch) => (
-              <ChannelCard
-                key={ch.key}
-                channel={ch}
-                content={ch.states[state]}
-                onPress={() => router.push(`/detail/${ch.key}`)}
-              />
-            ))}
-          </View>
+              <View style={styles.grid}>
+                {CHANNELS.map((ch) => (
+                  <ChannelCard
+                    key={ch.key}
+                    channel={ch}
+                    content={ch.states[state]}
+                    onPress={() => router.push(`/detail/${ch.key}`)}
+                  />
+                ))}
+              </View>
 
-          <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>모듈 상태</Text>
-          <View style={[styles.table, { borderColor: t.lineWeak }]}>
-            <Row label="기기 번호" value={MODULE_STATUS.nodeId} t={t} />
-            <Row label="감지 모듈 배터리" value={MODULE_STATUS.battery} t={t} />
-            <Row label="연결 상태" value={MODULE_STATUS.connection} t={t} />
-            <Row label="센서 점검" value={state === "alarm" ? "이상 없음 · 경보 중" : "이상 없음"} t={t} last />
-          </View>
-        </View>
-      </ScrollView>
+              <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>모듈 상태</Text>
+              <View style={[styles.table, { borderColor: t.lineWeak }]}>
+                <Row label="기기 번호" value={MODULE_STATUS.nodeId} t={t} />
+                <Row label="감지 모듈 배터리" value={MODULE_STATUS.battery} t={t} />
+                <Row label="연결 상태" value={MODULE_STATUS.connection} t={t} />
+                <Row label="센서 점검" value={state === "alarm" ? "이상 없음 · 경보 중" : "이상 없음"} t={t} last />
+              </View>
+            </View>
+          </ScrollView>
+        </>
+      )}
     </View>
   );
 }
@@ -99,6 +115,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   title: { fontSize: 17, fontWeight: "600" },
+  previewBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    gap: 10,
+  },
   scroll: { paddingBottom: 24 },
   padH: { paddingHorizontal: 18 },
   sectionTitle: { fontSize: 14, fontWeight: "600", marginTop: 22, marginBottom: 3 },

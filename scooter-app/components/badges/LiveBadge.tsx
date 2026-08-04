@@ -1,18 +1,22 @@
-// 상단 내비게이션의 연결 상태 배지. live=true면 점이 1.4초 주기로 깜빡이는 LIVE 배지(프로토타입 pulse
-// 애니메이션), live=false면 "실 데이터 없음"을 정직하게 보여주는 정적 배지 — 목데이터를 LIVE라고
-// 속여 보여주지 않기 위해서다 (services/telemetrySource.ts 참고).
+// 상단 내비게이션의 연결 상태 배지. 세 가지뿐이다:
+// "live"    — telemetrySource가 실제로 값을 보내는 중 (빨간 점 깜빡이는 LIVE)
+// "preview" — 데이터는 없지만 개발자가 NoDataState에서 미리보기를 고른 상태 (목데이터)
+// "offline" — 데이터도 없고 미리보기도 안 고른 상태 (연결 안 됨)
+// live가 아닌데 LIVE처럼 보이게 하지 않는다 — 목데이터를 실 데이터로 속이지 않기 위해서다.
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 
-export function LiveBadge({ live = true }: { live?: boolean }) {
+export type LiveBadgeStatus = "live" | "preview" | "offline";
+
+export function LiveBadge({ status }: { status: LiveBadgeStatus }) {
   const scheme = useScheme();
   const t = colors[scheme];
   const opacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!live) return;
+    if (status !== "live") return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 0.25, duration: 700, useNativeDriver: true }),
@@ -21,21 +25,22 @@ export function LiveBadge({ live = true }: { live?: boolean }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [live, opacity]);
+  }, [status, opacity]);
 
-  if (!live) {
+  if (status === "live") {
     return (
       <View style={[styles.badge, { backgroundColor: t.fillNormal }]}>
-        <View style={[styles.dot, { backgroundColor: t.labelAssist }]} />
-        <Text style={[styles.text, { color: t.labelAlt }]}>목데이터</Text>
+        <Animated.View style={[styles.dot, { backgroundColor: t.negative, opacity }]} />
+        <Text style={[styles.text, { color: t.accRed }]}>LIVE</Text>
       </View>
     );
   }
 
+  const label = status === "preview" ? "목데이터" : "연결 안 됨";
   return (
     <View style={[styles.badge, { backgroundColor: t.fillNormal }]}>
-      <Animated.View style={[styles.dot, { backgroundColor: t.negative, opacity }]} />
-      <Text style={[styles.text, { color: t.accRed }]}>LIVE</Text>
+      <View style={[styles.dot, { backgroundColor: t.labelAssist }]} />
+      <Text style={[styles.text, { color: t.labelAlt }]}>{label}</Text>
     </View>
   );
 }

@@ -13,6 +13,7 @@ import { TrendChart } from "@/components/chart/TrendChart";
 import { SignatureRow } from "@/components/detail/SignatureRow";
 import { CompareRow } from "@/components/detail/CompareRow";
 import { RawValuesDisclosure } from "@/components/channel/RawValuesDisclosure";
+import { NoDataState } from "@/components/dev/NoDataState";
 
 const TONE_KEY = { ok: "positive", warn: "cautionary", bad: "negative" } as const;
 const ACC_KEY = { ok: "accGreen", warn: "accOrange", bad: "accRed" } as const;
@@ -21,9 +22,19 @@ export default function ChannelDetailScreen() {
   const { channel: channelKey } = useLocalSearchParams<{ channel: string }>();
   const scheme = useScheme();
   const t = colors[scheme];
-  const { state, isLive } = useAppState();
+  const { state, isLive, setDevState } = useAppState();
 
   const channel = CHANNELS.find((c) => c.key === channelKey) ?? CHANNELS[0];
+
+  if (state === null) {
+    return (
+      <>
+        <Stack.Screen options={{ title: channel.name }} />
+        <NoDataState onPreview={setDevState} />
+      </>
+    );
+  }
+
   const content = STATE_CONTENT[state];
   const tone = t[TONE_KEY[content.verdictLevel]];
   const acc = t[ACC_KEY[content.verdictLevel]];

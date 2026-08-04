@@ -42,6 +42,6 @@ export function DevStateToggle({
 }
 
 const styles = StyleSheet.create({
-  seg: { flexDirection: "row", marginHorizontal: 18, marginTop: 10, borderRadius: 14, padding: 3, gap: 2 },
-  btn: { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: 11 },
+  seg: { flexDirection: "row", borderRadius: 14, padding: 3, gap: 2 },
+  btn: { alignItems: "center", paddingVertical: 7, paddingHorizontal: 10, borderRadius: 11 },
 });
