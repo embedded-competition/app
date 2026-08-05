@@ -1,16 +1,25 @@
 // 경보 화면. planning/prototypes/b-live-monitor.html 화면 3(ALARM 데모)을 그대로 옮긴 것.
-// 해제는 A7(latch, 자동 해제 없음)·O8(권한/downlink 경로 미설계)이라 지금은 비활성.
+// 해제는 A7(latch, 자동 해제 없음) — 앱은 "해제 요청"만 보내고, 승인 여부(권한 판단)는
+// 서버가 내부에서 결정한다(O8 확정). 서버가 아직 없어서 지금은 항상 실패로 온다(정직한 스텁).
 import { router } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useScheme } from "@/contexts/ThemeModeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/tokens";
+import { useAlarmRelease } from "@/hooks/useAlarmRelease";
+import { useDevice } from "@/contexts/DeviceContext";
 import { AlarmPulseOverlay } from "@/components/alarm/AlarmPulseOverlay";
+
+function callPhone(number: string) {
+  Linking.openURL(`tel:${number}`).catch(() => {});
+}
 
 export default function AlarmScreen() {
   const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
+  const { releasing, error: releaseError, requestRelease } = useAlarmRelease();
+  const { managementPhone } = useDevice();
 
   return (
     <View style={[styles.container, { backgroundColor: t.negative }]}>
@@ -48,15 +57,26 @@ export default function AlarmScreen() {
         </View>
 
         <View style={styles.actions}>
-          <Pressable style={[styles.btn, { backgroundColor: "#fff" }]}>
+          <Pressable style={[styles.btn, { backgroundColor: "#fff" }]} onPress={() => callPhone("119")}>
             <Text style={[styles.btnText, { color: t.accRed }]}>119 신고하기</Text>
           </Pressable>
-          <Pressable style={[styles.btn, styles.outline]}>
-            <Text style={[styles.btnText, { color: "#fff" }]}>관리실 전화</Text>
+          <Pressable
+            style={[styles.btn, styles.outline]}
+            onPress={() => managementPhone && callPhone(managementPhone)}
+            disabled={!managementPhone}
+          >
+            <Text style={[styles.btnText, { color: managementPhone ? "#fff" : "#ffffffb0" }]}>
+              {managementPhone ? "관리실 전화" : "관리실 번호 없음"}
+            </Text>
           </Pressable>
-          <Pressable style={[styles.btn, styles.outline]} disabled>
-            <Text style={[styles.btnText, { color: "#ffffffb0" }]}>경보 해제 (관리자 확인 필요)</Text>
+          <Pressable style={[styles.btn, styles.outline]} onPress={() => requestRelease()} disabled={releasing}>
+            {releasing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={[styles.btnText, { color: "#fff" }]}>경보 해제 요청</Text>
+            )}
           </Pressable>
+          {releaseError && <Text style={styles.releaseError}>{releaseError}</Text>}
         </View>
 
         <Pressable onPress={() => router.back()}>
@@ -93,5 +113,6 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   outline: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: "#ffffff8f" },
   btnText: { fontSize: 15, fontWeight: "700" },
+  releaseError: { color: "#fff", fontSize: 12, textAlign: "center", marginTop: -2 },
   close: { color: "#ffffffb0", textAlign: "center", marginTop: 16, fontSize: 13 },
 });

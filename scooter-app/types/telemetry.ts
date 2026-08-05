@@ -74,5 +74,5 @@ export interface DeviceTelemetry {
   water?: boolean; // 물·누액 확증 보너스 — 계획
   module: ModuleStatus;
   signature?: SignatureFlags;
-  location?: { lat: number; lon: number } | { label: string }; // 없음 → O1
+  location?: { lat: number; lon: number }; // O1 확정: GPS(임베디드 모듈 직접 측정). 실 전송은 임베디드 포맷 확정 후
 }
