@@ -4,11 +4,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { localOnlyDeviceRegistry, type DeviceRegistry } from "@/services/deviceRegistry";
 
-const STORAGE_KEY = "scooter-app:paired-mac";
+const MAC_STORAGE_KEY = "scooter-app:paired-mac";
+const MANAGEMENT_PHONE_STORAGE_KEY = "scooter-app:management-phone";
 
 interface DeviceContextValue {
   /** null이면 아직 등록된 기기가 없다는 뜻. */
   pairedMac: string | null;
+  /** 맥주소 등록 시 서버가 같이 내려준 관리실 전화번호. 경보 화면 "관리실 전화" 버튼에 씀. */
+  managementPhone: string | null;
   /** AsyncStorage에서 저장된 값을 다 읽어오기 전까지 true — 이 동안은 화면을 그리지 않는다. */
   isLoaded: boolean;
   pairing: boolean;
@@ -28,13 +31,17 @@ export function DeviceProvider({
   registry?: DeviceRegistry;
 }) {
   const [pairedMac, setPairedMac] = useState<string | null>(null);
+  const [managementPhone, setManagementPhone] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [pairing, setPairing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then(setPairedMac)
+    Promise.all([AsyncStorage.getItem(MAC_STORAGE_KEY), AsyncStorage.getItem(MANAGEMENT_PHONE_STORAGE_KEY)])
+      .then(([mac, phone]) => {
+        setPairedMac(mac);
+        setManagementPhone(phone);
+      })
       .catch(() => {})
       .finally(() => setIsLoaded(true));
   }, []);
@@ -49,8 +56,12 @@ export function DeviceProvider({
           setError(result.error ?? "등록에 실패했어요. 맥주소를 다시 확인해주세요.");
           return false;
         }
-        await AsyncStorage.setItem(STORAGE_KEY, mac);
+        await AsyncStorage.setItem(MAC_STORAGE_KEY, mac);
         setPairedMac(mac);
+        if (result.managementPhone) {
+          await AsyncStorage.setItem(MANAGEMENT_PHONE_STORAGE_KEY, result.managementPhone);
+          setManagementPhone(result.managementPhone);
+        }
         return true;
       } catch {
         setError("등록 중 문제가 생겼어요. 다시 시도해주세요.");
@@ -64,12 +75,13 @@ export function DeviceProvider({
 
   const unpair = useCallback(() => {
     setPairedMac(null);
-    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+    setManagementPhone(null);
+    AsyncStorage.multiRemove([MAC_STORAGE_KEY, MANAGEMENT_PHONE_STORAGE_KEY]).catch(() => {});
   }, []);
 
   const value = useMemo<DeviceContextValue>(
-    () => ({ pairedMac, isLoaded, pairing, error, pair, unpair }),
-    [pairedMac, isLoaded, pairing, error, pair, unpair],
+    () => ({ pairedMac, managementPhone, isLoaded, pairing, error, pair, unpair }),
+    [pairedMac, managementPhone, isLoaded, pairing, error, pair, unpair],
   );
 
   return <DeviceContext.Provider value={value}>{children}</DeviceContext.Provider>;

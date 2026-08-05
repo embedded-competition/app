@@ -14,7 +14,7 @@
 임베디드 노드 → 서버(정규화·판정 보조·저장) → [TelemetrySource 구현체] → useAppState → 화면
 ```
 
-앱은 `services/telemetrySource.ts`의 `TelemetrySource` 인터페이스 하나만 알면 된다. 서버가 REST 폴링이든 WebSocket이든 SSE든, 그 구현체 안에서만 처리하면 화면 코드는 손댈 필요가 없다.
+앱은 `services/telemetrySource.ts`의 `TelemetrySource` 인터페이스 하나만 알면 된다. 실제 통신 방식은 **HTTP 요청 폴링으로 확정**했다(WebSocket·SSE 같은 연결 유지형 프로토콜은 안 씀 — [`../../api-spec.md`](../../api-spec.md)의 "① 조회" 패턴 참고) — 그 구현체 안에서만 처리하면 화면 코드는 손댈 필요가 없다.
 
 **지금은 서버가 없다** — `noTelemetrySource`(아무 것도 방출하지 않음)가 기본값이고, `DevStateToggle`이 화면 상단에서 로컬로만 상태를 채워 넣는다. `LiveBadge`가 `isLive=false`일 때 "목데이터"라고 정직하게 표시하는 것도 이 때문이다.
 
@@ -40,7 +40,7 @@ interface TelemetrySource {
 | 필드 | 타입 | 상태 | 화면 사용처 | 비고 |
 |---|---|---|---|---|
 | `state` | `NodeState` | 있음 | 상태 리본, 탭바 배지, 경보 화면 진입 | §1의 `AppState`와 동일 개념 |
-| `latched` | `boolean` | 있음 | 경보 해제 버튼 활성화 여부 | A7 — latch 해제 전까지 true |
+| `latched` | `boolean` | 있음 | 경보가 계속 유지 중인지 표시(참고용) | A7 — latch 해제 전까지 true. 해제는 앱이 요청만 보내고 승인은 서버가 판단([O8](../../../planning/decisions/open-questions.md#o8), `../../../api-spec.md`의 `alarm/release`) |
 | `gas.{sraw,baseline,devZ,slope}` | `GasChannel` | 일부 (내부값 미전송 → [O2](../../../planning/decisions/open-questions.md#o2)) | 배터리 가스 카드·게이지·원본수치 접이식 | PRIMARY 채널, S1 |
 | `h2.{mv,mvAvg,rsKohm,slope}` | `HydrogenChannel` | 있음 | 과충전 가스 카드 | S2 |
 | `co.{mv,slope}` | `CarbonMonoxideChannel?` | 미착수(센서 미도입) | 타는 가스 카드 | S3, 확증 전용 |
@@ -49,7 +49,7 @@ interface TelemetrySource {
 | `water` | `boolean?` | 계획 | 물·누액 카드 | S5, 확증 보너스 |
 | `signature.{rise,hold,noRecover,holdS}` | `SignatureFlags?` | 전송 X → O2 | 항목 상세 "판단 근거 3요소" | A4 |
 | `module.{nodeId,seq,battMv,rssi,lastSeen}` | `ModuleStatus` | 있음 | 모듈 상태 표 | LoRa 14B 페이로드 |
-| `location` | `{lat,lon}\|{label}` | 없음 → [O1](../../../planning/decisions/open-questions.md#o1) | 실시간 화면 지도 | 지금은 폰 GPS로 대체(`DeviceMap.tsx` 참고) |
+| `location` | `{lat,lon}` | GPS로 확정([O1](../../../planning/decisions/open-questions.md#o1)) — 실 전송은 임베디드 포맷 확정 후 | 실시간 화면 지도 | 지금은 폰 GPS로 대체 중(`DeviceMap.tsx`) — 서버 좌표 연동 코드 전환 필요 |
 
 ### 3.1 문구는 누가 만드나 — 미해결 설계 이슈
 
@@ -70,11 +70,18 @@ interface TelemetrySource {
 
 | # | 질문 | 지금 앱이 임시로 하는 것 | Phase 2에서 바뀔 것 |
 |---|---|---|---|
-| [O1](../../../planning/decisions/open-questions.md#o1) | 위치 소스 (GPS/등록위치/게이트웨이) | 폰 자체 GPS로 카메라 추적 | `DeviceTelemetry.location` 기반 controlled `camera`로 교체 |
-| [O2](../../../planning/decisions/open-questions.md#o2) | 노드가 판단 근거(dev·slope·시그니처)를 전송할지 | 상태별 목데이터로 채움 | 전송 확정 시 `signature` 필드 실값 연결 |
 | [O5](../../../planning/decisions/open-questions.md#o5) | 탭 3개 vs 4개(+통계) | 4탭 유지, `stats.tsx`는 안내만 | 확정되면 탭 구조·집계 API 필요 여부 결정 |
-| [O8](../../../planning/decisions/open-questions.md#o8) | 경보 해제 권한/경로 | 해제 버튼 비활성 | `ack` downlink API 필요 (서버 → LoRa) |
-| [O9](../../../planning/decisions/open-questions.md#o9) | 압력 채널 센서 종류 | `pressure` 필드 목데이터로만 존재 | 센서 확정 후 실측 연동 |
+
+> [O9](../../../planning/decisions/open-questions.md#o9)(압력 채널 센서 종류)는 이 표에서 뺐다 — 어떤 센서를 쓰든 앱은 정규화된 `pressure` 값만 받으므로 인터페이스에 영향이 없다(임베디드 하드웨어 결정일 뿐). `pressure` 필드 자체는 여전히 "미착수" 상태([§3](#3-목표-데이터-모델-phase-2--아직-미구현) 표 참고) — 센서가 뭐든 상관없이 임베디드 쪽 구현이 끝나야 채워진다.
+
+**확정된 것**
+
+| # | 결정 | 앱에 미치는 영향 |
+|---|---|---|
+| [O1](../../../planning/decisions/open-questions.md#o1) | 위치 소스 = **GPS로 확정**(임베디드 모듈이 직접 측정) | `DeviceTelemetry.location`에 실좌표가 채워져서 온다. 앱은 그대로 표시만 하면 됨 — 지금 `DeviceMap.tsx`의 폰 GPS 추종은 이 결정 전 임시방편이라 controlled `camera`(서버 좌표 기반)로 코드 전환 필요 |
+| [O2](../../../planning/decisions/open-questions.md#o2) | 노드가 판단 근거를 전송할지 = **서버가 계산해서 제공**(노드가 아니라 서버가 raw로부터 계산) | `signature` 필드가 응답에 항상 채워져서 온다 — "전송 안 될 수도 있음"을 전제로 화면을 짤 필요 없음 |
+| [O4](../../../planning/decisions/open-questions.md#o4) | 기기 관리 = **단일 기기로 확정**(1계정=1기기) | `DeviceContext`의 맥주소 1개 전제가 그대로 최종 모델. 다중 기기 대응 코드 안 짜도 됨 |
+| [O8](../../../planning/decisions/open-questions.md#o8) | 경보 해제 권한 = **앱은 요청만, 승인은 서버가 내부 규칙으로 판단** | `alarm.tsx`에 "경보 해제 요청" 버튼 완료 — `services/alarmRelease.ts`로 요청 전송, 서버 없어서 항상 실패 응답 |
 
 ## 6. 기기 등록 (페어링)
 
@@ -84,6 +91,9 @@ interface TelemetrySource {
 interface DeviceRegistryResult {
   ok: boolean;
   error?: string;
+  deviceId?: string;
+  deviceToken?: string; // 인증용 — 이후 모든 요청에 Authorization: Bearer <deviceToken>
+  managementPhone?: string; // 등록 위치의 관리실 전화번호 — 경보 화면 "관리실 전화" 버튼에 씀
 }
 
 interface DeviceRegistry {
@@ -92,16 +102,16 @@ interface DeviceRegistry {
 }
 ```
 
-- 지금은 `localOnlyDeviceRegistry`가 항상 `{ ok: true }`를 반환하고 AsyncStorage에만 저장한다 — 서버 검증이 전혀 없다.
-- 실 서버가 생기면 이 계약대로 `POST /devices/pair { mac }` 같은 엔드포인트를 만들면 된다. 성공 시 서버가 뭘 더 돌려줘야 하는지(예: `deviceId`, `nickname`, 이미 다른 계정에 등록된 MAC이면 어떤 에러 코드인지)는 아직 안 정했다 — 여러 대 관리([O4](../../../planning/decisions/open-questions.md#o4))와도 맞물리는 지점이라 서버 설계 시 같이 정할 것.
-- MAC 하나 = 킥보드 한 대라는 전제다. 관리실이 여러 대를 관리하는 시나리오([O4](../../../planning/decisions/open-questions.md#o4))로 가면 이 인터페이스에 계정↔기기 다대다 관계가 추가돼야 한다.
+- **인증 모델 확정**: 로그인/계정 시스템 없음. 등록 성공 시 서버가 내려주는 `deviceToken`이 "이 폰이 이 킥보드에 접근 자격이 있다"는 증명이고, 이후 모든 요청은 그 토큰만 쓴다(사람 단위가 아니라 폰-킥보드 페어링 단위 인증). 상세 요청/응답 예시는 [`../../../api-spec.md`](../../../api-spec.md) 참고.
+- 지금은 `localOnlyDeviceRegistry`가 항상 `{ ok: true }`만 반환하고 AsyncStorage에는 mac만 저장한다 — `deviceToken`은 실 서버가 생기기 전까지 안 채워진다(어차피 아직 이 토큰을 쓰는 API 호출이 없음).
+- MAC 하나 = 킥보드 한 대, **[O4](../../../planning/decisions/open-questions.md#o4) 확정**: 다중 기기 지원 없이 이대로 최종 모델로 간다. (관리실 다중 관리 같은 시나리오가 나중에 필요해지면 계정↔기기 다대다 관계·로그인 시스템을 다시 설계해야 하지만, 지금은 범위 밖으로 명시적으로 뺐다.)
 - 개발 모드(`__DEV__`)에서는 `"0000"`을 입력하면 실제 MAC 검증 없이 고정 값(`00:00:00:00:00:00`)으로 즉시 등록되고 미리보기 화면으로 들어간다. 프로덕션 빌드에서는 이 분기가 번들에서 아예 빠진다 — 배포판에 우회 코드가 남을 걱정은 안 해도 된다.
 
 ## 7. 변경 관리
 
 이 문서는 draft다. 서버 API가 실제로 정해지면:
 1. `types/telemetry.ts`를 확정된 페이로드에 맞게 갱신
-2. `services/telemetrySource.ts`에 실제 구현체(REST/WebSocket) 추가, `noTelemetrySource`는 개발/오프라인 폴백으로만 남김
+2. `services/telemetrySource.ts`에 HTTP 폴링 구현체(`../../api-spec.md`의 "현재 상태 조회" 메서드) 추가, `noTelemetrySource`는 개발/오프라인 폴백으로만 남김
 3. `services/deviceRegistry.ts`에 실제 HTTP 구현체 추가, `localOnlyDeviceRegistry`는 폴백으로만 남김
 4. 이 문서의 표를 "미착수/계획" → "있음"으로 갱신
 5. `mocks/channels.ts`의 하드코딩 문구를 §3.1 결정에 따라 서버 응답 매핑으로 교체
