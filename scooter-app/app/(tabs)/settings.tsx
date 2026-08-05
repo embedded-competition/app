@@ -1,12 +1,13 @@
-// 설정 화면 (O5 데이터 매핑): 기기 등록, 알림 대상·강도, 플러그 자동차단, 위치 등록(O1), 경보 해제(O8).
+// 설정 화면 (O5 데이터 매핑): 기기 등록, 알림 대상·강도, 플러그 자동차단, 경보 해제 요청(O8).
 import { router } from "expo-router";
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useScheme } from "@/contexts/ThemeModeContext";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/tokens";
 import { useDevice } from "@/contexts/DeviceContext";
 import { isDevBypassMac } from "@/services/deviceRegistry";
+import { useAlarmRelease } from "@/hooks/useAlarmRelease";
 import { ThemeModeToggle } from "@/components/settings/ThemeModeToggle";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -27,6 +28,7 @@ export default function SettingsScreen() {
   const { pairedMac } = useDevice();
   const [autoPlugCut, setAutoPlugCut] = useState(true);
   const [notifyOnWatch, setNotifyOnWatch] = useState(true);
+  const { releasing, error: releaseError, requestRelease } = useAlarmRelease();
 
   return (
     <View style={[styles.container, { backgroundColor: t.bgAlt, paddingTop: insets.top + 16 }]}>
@@ -47,12 +49,22 @@ export default function SettingsScreen() {
       <Row label="정비 필요 알림">
         <Switch value={notifyOnWatch} onValueChange={setNotifyOnWatch} />
       </Row>
-      <Row label="위치 등록">
-        <Text style={{ color: t.labelAssist }}>미설정 (O1 결정 대기)</Text>
-      </Row>
       <Row label="경보 해제">
-        <Text style={{ color: t.labelAssist }}>해제 권한/경로 미설계 (O8)</Text>
+        <Pressable
+          onPress={() => requestRelease()}
+          disabled={releasing}
+          style={[styles.releaseBtn, { backgroundColor: t.fillNormal }]}
+        >
+          {releasing ? (
+            <ActivityIndicator size="small" color={t.labelStrong} />
+          ) : (
+            <Text style={{ color: t.labelStrong, fontSize: 13, fontWeight: "600" }}>요청</Text>
+          )}
+        </Pressable>
       </Row>
+      {releaseError && (
+        <Text style={{ color: t.negative, fontSize: 12, marginTop: -8, marginBottom: 8 }}>{releaseError}</Text>
+      )}
     </View>
   );
 }
@@ -67,4 +79,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   deviceValue: { flexDirection: "row", alignItems: "center", gap: 8 },
+  releaseBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, minWidth: 56, alignItems: "center" },
 });

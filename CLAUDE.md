@@ -1,5 +1,10 @@
 @scooter-app/AGENTS.md
 
+## 작업 규칙 (예외 없음)
+
+1. **커밋·푸시는 사용자가 명시적으로 지시할 때만 한다.** 파일을 고친 뒤 곧바로 `git commit`/`git push`를 하지 않는다 — 사용자가 변경 내용을 먼저 검토할 시간을 준다. 코드든 문서든 예외 없음.
+2. **작업이 끝나면 항상 진행사항·주요 변경사항을 정리해서 알린다.** 뭘 고쳤는지, 뭐가 아직 안 됐는지, 검토가 필요한 게 뭔지 짧게 요약할 것 — 사용자가 매번 diff를 직접 훑지 않아도 무슨 일이 있었는지 알 수 있게. 개발자 간 소통용 전체 현황판은 [`PROGRESS.md`](PROGRESS.md)(레포 최상위) — 화면/결정사항이 크게 바뀌면 그것도 같이 갱신할 것.
+
 # scooter-app
 
 전동킥보드 배터리 **off-gas 조기경보 시스템**의 앱 파트 (Expo Router / React Native).
@@ -35,10 +40,10 @@ scooter-app/
     _layout.tsx                루트 Stack: 기기 미등록이면 PairingForm만, 등록됐으면 (tabs) + detail/[channel] + alarm + pairing
     pairing.tsx                 기기 등록/변경 (설정 탭에서 재진입용 — 최초 게이트는 _layout.tsx가 라우팅 없이 직접 띄움)
     (tabs)/
-      _layout.tsx               하단 탭: 실시간·기록·통계·설정 (4탭, 프로토타입 그대로 — O5 참고)
+      _layout.tsx               하단 탭: 실시간·기록·통계·설정 (4탭 확정 — O5)
       index.tsx                 실시간 — 지도 → 상태 리본 → 채널 카드 그리드 → 모듈 상태
-      record.tsx                기록 — 요약 카드 + 이벤트 리스트
-      stats.tsx                  통계 — 미설계 안내만 (O5)
+      record.tsx                기록 — 평소엔 요약 카드+최근 기록, `?date=` 쿼리로 들어오면 그 날짜 기록만 필터링
+      stats.tsx                  통계 — 날짜 이동(DateNav) + 이상유무 요약 + 센서별 일별 그래프(MiniLineChart) + "이 날짜 기록 보기"→record로 이동
       settings.tsx               설정 — 기기등록/테마/알림/자동차단/위치등록/경보해제
     detail/[channel].tsx        항목 상세 — 판정 → 요약 → 설명 → 게이지 → 추이 → 판단근거 → 비교 → 원본수치(접이식)
     alarm.tsx                   경보 전체화면
@@ -59,14 +64,19 @@ scooter-app/
     detail/CompareRow.tsx       같은 모델 비교 2열 박스
     alarm/AlarmPulseOverlay.tsx  경보 화면 상하 명멸 그라데이션
     common/RichText.tsx         `**볼드**` 마크만 지원하는 최소 리치텍스트 (프로토타입 <b> 이식용)
+    stats/DateNav.tsx           통계 탭 상단 날짜 이동(◀ 날짜 ▶), 오늘 이후로는 못 감
+    stats/MiniLineChart.tsx     통계 탭 센서별 일별 그래프(24시간 선 그래프)
 
   constants/tokens.ts         디자인 토큰(색·radius·경보 명멸 주기). b-live-monitor.html의 CSS 변수를 그대로 이식
   types/telemetry.ts          실 서버 페이로드가 정해졌을 때를 위한 참고용 타입(§7 데이터 인벤토리). 아직 화면에서 안 씀
   mocks/channels.ts           화면을 실제로 그리는 데이터 원천 — 6개 채널 × normal/watch/alarm 3상태 콘텐츠, 프로토타입 JS(CH·ST)를 그대로 이식
+  mocks/history.ts             통계 탭용 날짜별 목데이터 — api-spec.md "날짜별 센서값 조회"를 흉내냄. 날짜 문자열을 시드로 결정적인 값 생성(매번 랜덤 아님)
   services/telemetrySource.ts  앱이 서버로부터 상태를 "받는" 경계. 지금은 아무 것도 보내지 않는 기본 구현만 있음
   services/deviceRegistry.ts   기기 등록(맥주소 페어링)의 서버 경계. MAC 정규화(normalizeMac)와 개발용 우회 코드(DEV_BYPASS_CODE="0000", `__DEV__`로 감싸져 있어 프로덕션엔 안 남음)도 여기 있음. 지금은 로컬 저장만 하고 무조건 성공 처리하는 스텁
+  services/alarmRelease.ts     경보 해제 요청의 서버 경계. 승인 판단은 서버 책임(O8) — 서버가 없어서 지금은 항상 실패로 응답하는 정직한 스텁(deviceRegistry와 달리 "성공한 척" 안 함)
+  hooks/useAlarmRelease.ts     경보 해제 요청 버튼 로직(releasing/error/requestRelease) — `alarm.tsx`와 설정 탭이 같이 씀
   contexts/AppStateContext.tsx  telemetrySource를 구독해서 앱 전체가 공유하는 상태 하나(`AppState | null`). null = 분류할 데이터 없음 — "정상"으로 기본값을 깔지 않는다. 실 데이터가 없을 때만 DevStateToggle 로컬 오버라이드를 씀 (isLive로 구분) — 예전엔 화면마다 useState로 따로 들고 있어서 화면 간 상태가 안 맞는 버그가 있었다
-  contexts/DeviceContext.tsx   페어링된 기기(맥주소) 하나. null이면 app/_layout.tsx가 탭 화면 대신 PairingForm을 띄운다 — 텔레메트리보다 앞선 게이트
+  contexts/DeviceContext.tsx   페어링된 기기(맥주소) + managementPhone(관리실 전화번호, 등록 시 서버가 같이 내려줌) 저장. pairedMac이 null이면 app/_layout.tsx가 탭 화면 대신 PairingForm을 띄운다 — 텔레메트리보다 앞선 게이트
   contexts/ThemeModeContext.tsx  테마 설정(시스템/라이트/다크). AsyncStorage에 저장, `useScheme()`이 실제 적용될 라이트/다크 값을 돌려준다
   docs/interface.md           앱 ↔ 서버 인터페이스 명세 (서버·임베디드 팀 전달용) — 필드별 상태·화면 사용처, 기기 등록 API 계약 정리
 ```
@@ -89,14 +99,16 @@ scooter-app/
 - **`mocks/channels.ts`** — 지금 화면을 실제로 그리는 콘텐츠. 프로토타입 HTML의 `CH`(6채널)·`ST`(상태별 리본/게이지/차트/판단근거 문구)를 그대로 옮겼다. 화면은 `STATE_CONTENT[state]`·`CHANNELS[i].states[state]`를 읽어서 그린다.
 - **`types/telemetry.ts`** — 실 서버 페이로드가 나왔을 때 쓸 참고용 스키마(§7 데이터 인벤토리 그대로 타입화). 아직 어떤 화면도 이 타입을 쓰지 않는다.
 
-실 서버 API가 정해지면 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md)의 계약대로: `telemetrySource.ts`에 실제 구현체(REST/WebSocket)를 추가하고, `mocks/channels.ts`의 문구·수치 생성 로직을 서버 응답 매핑으로 교체한다(문구 자체를 서버가 내려줄지는 interface.md §3.1 참고 — 아직 미정).
+실 서버 API가 정해지면 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md)의 계약대로: `telemetrySource.ts`에 HTTP 폴링 구현체(`api-spec.md`의 "① 조회" 패턴 — WebSocket·SSE 안 씀)를 추가하고, `mocks/channels.ts`의 문구·수치 생성 로직을 서버 응답 매핑으로 교체한다(문구 자체를 서버가 내려줄지는 interface.md §3.1 참고 — 아직 미정).
 
 ## 지도 설정 (네이버 지도 SDK)
 
 `@mj-studio/react-native-naver-map`을 쓴다. 킥보드를 타고 이동하면 카메라가 실시간으로 따라가야 해서
-정적 지도 이미지 API 대신 네이티브 SDK로 갔다 — 다만 이건 **폰 자체 GPS를 킥보드 위치의 대역으로 쓰는 것**이다.
-실제로는 킥보드에 탑재된 모듈의 GPS/게이트웨이 위치를 서버가 내려줘야 하는데 그 방식 자체가 O1 미확정이라,
-O1이 정해지면 `DeviceMap.tsx`를 서버가 준 좌표 기반 `camera`(controlled prop)로 바꿔야 한다.
+정적 지도 이미지 API 대신 네이티브 SDK로 갔다 — 지금 구현(`setLocationTrackingMode("Follow")`)은
+**폰 자체 GPS를 킥보드 위치의 대역으로 쓰는 것**인데, **[O1](../planning/decisions/open-questions.md#o1)이 GPS로 확정**됐으니
+이제 킥보드에 탑재된 임베디드 모듈이 직접 측정한 좌표를 서버가 내려주는 구조로 바뀐다. `DeviceMap.tsx`를
+서버가 준 좌표(`DeviceTelemetry.location`) 기반 controlled `camera` prop으로 바꾸는 작업이 남아있다 —
+아직 안 함, 실제 임베디드 GPS 전송 포맷이 확정되면 진행할 것.
 
 **네이티브 모듈이라 Expo Go로는 안 뜬다.** 아래 순서로 dev-client 빌드가 먼저 필요하다.
 
@@ -117,7 +129,7 @@ O1이 정해지면 `DeviceMap.tsx`를 서버가 준 좌표 기반 `camera`(contr
 - **상태가 ALARM으로 바뀌는 순간 자동으로 경보 화면을 띄운다** — 어느 탭에 있든 상관없이 떠야 해서 `app/_layout.tsx`(루트)에서 `state`를 감시하다가 `"alarm"`으로 처음 바뀔 때만(rising edge) `router.push("/alarm")`을 부른다. 계속 ALARM 상태라고 반복해서 밀어넣지는 않는다 — 사용자가 "닫기"로 나가면 그 상태로 둔다. `StatusRibbon`의 신고 버튼(`onReportPress`)도 danger 상태일 때 같은 화면으로 이동한다 — 리본의 버튼 색만 바뀌고 아무 동작도 없는 상태로 두지 말 것.
 - **색은 항상 `constants/tokens.ts`를 통해서만**. raw hex를 화면 코드에 직접 쓰지 않는다.
 - **다크모드는 설정 탭에서 시스템/라이트/다크 중 고를 수 있다** — `contexts/ThemeModeContext.tsx`(`ThemeModeProvider`)가 선택값을 AsyncStorage에 저장하고, 실제 적용될 라이트/다크 값(`ColorScheme`)을 계산한다. **화면 코드는 `react-native`의 `useColorScheme()`을 직접 쓰지 말고 항상 `useScheme()`(from `@/contexts/ThemeModeContext`)을 쓸 것** — 그래야 사용자가 고른 값이 반영된다. 탭바·헤더 같은 네비게이션 크롬은 `app/_layout.tsx`의 `ThemeProvider`가 이 값을 받아서 처리한다. `colors.light`/`colors.dark`를 하드코딩하지 말 것(예외: `alarm.tsx`처럼 배경 자체가 고정 색인 화면도 텍스트·보조색은 `useScheme()`을 따라가게 했다).
-- **ALARM은 자동 해제 없음**([A7](../planning/decisions/algorithm.md#a7)). 해제 버튼을 만들 때 "그냥 누르면 꺼지는" 동작을 넣지 말 것 — 지금은 경로 자체가 미설계라 비활성 상태로 둔다([O8](../planning/decisions/open-questions.md#o8)).
+- **ALARM은 자동 해제 없음**([A7](../planning/decisions/algorithm.md#a7)). **앱은 "해제 요청"만 보내고, 승인 여부(권한 판단)는 서버가 내부 규칙으로 결정**한다([O8](../planning/decisions/open-questions.md#o8) 확정) — 그 규칙 자체를 앱이 알 필요는 없다. `alarm.tsx`의 "경보 해제 요청" 버튼이 `services/alarmRelease.ts`로 요청을 보내고, 서버가 없는 지금은 항상 실패로 온다(정직한 스텁 — 성공한 척하지 않는다).
 
 ### 용어 매핑 (화면 표기 ↔ 원래 용어)
 
@@ -138,14 +150,17 @@ O1이 정해지면 `DeviceMap.tsx`를 서버가 준 좌표 기반 `camera`(contr
 
 지금 코드에서 임시로 어떻게 처리해뒀는지 같이 적는다. 확정되면 여기부터 고칠 것.
 
-| # | 질문 | 지금 임시 처리 |
+지금은 없음 — O1/O2/O4/O5/O8 전부 확정, O9는 앱과 무관해서 아래 표에서도 뺐다(어떤 압력 센서를 쓰든 앱은 정규화된 `pressure` 값만 받는 임베디드 하드웨어 결정).
+
+**확정된 것**
+
+| # | 결정 | 코드에 반영해야 할 것 (아직 안 함) |
 |---|---|---|
-| [O1](../planning/decisions/open-questions.md#o1) | 위치를 어떻게 잡나 (GPS/등록위치/게이트웨이) | `DeviceMap`이 **폰 자체 GPS**로 카메라를 추적(`setLocationTrackingMode("Follow")`) — 킥보드 모듈의 실제 위치 소스가 아니라 임시 대역. O1 확정되면 서버 좌표 기반 controlled `camera`로 교체 |
-| [O2](../planning/decisions/open-questions.md#o2) | 노드가 판단 근거(dev·slope·시그니처)를 전송할지 | 판단 근거 3요소를 `mocks/channels.ts`에 목데이터로 채워둠 — 실전송 여부에 따라 항목 상세 화면 하단 구조가 바뀔 수 있음 |
-| [O4](../planning/decisions/open-questions.md#o4) | 기기 여러 대 관리 (개인 1대 vs 관리실 다중) | `DeviceContext`가 맥주소 1개만 저장 — 계정당 기기 1:1 전제. 다중 기기로 가면 `services/deviceRegistry.ts`·`DeviceContext`를 계정↔기기 목록 구조로 바꿔야 함 |
-| [O5](../planning/decisions/open-questions.md#o5) | 하단 탭 3개 vs 4개(+통계) | 프로토타입과 동일하게 4탭 구현, `stats.tsx`는 안내 문구만. 3탭으로 확정되면 `(tabs)/_layout.tsx`·`stats.tsx` 정리 |
-| [O8](../planning/decisions/open-questions.md#o8) | 경보 해제 권한/경로 | `alarm.tsx`의 해제 버튼은 비활성 상태로만 존재 |
-| [O9](../planning/decisions/open-questions.md#o9) | 압력 채널 센서(BMP390/strain gauge) | `pres` 채널은 목데이터로만 존재, 실측 연동 없음 |
+| [O1](../planning/decisions/open-questions.md#o1) | 위치 소스 = **GPS 확정**(임베디드 모듈 직접 측정) | `DeviceMap`은 아직도 **폰 자체 GPS**로 카메라 추적 중(`setLocationTrackingMode("Follow")`) — 서버가 주는 `DeviceTelemetry.location` 기반 controlled `camera`로 교체해야 함 |
+| [O2](../planning/decisions/open-questions.md#o2) | 판단 근거 전송 = **서버가 계산해서 제공**(노드가 아니라 서버가 raw로부터 계산) | 없음 — `signature`가 항상 채워져서 온다는 전제로 이미 구현돼 있음(`mocks/channels.ts` 목데이터도 이 형태) |
+| [O4](../planning/decisions/open-questions.md#o4) | 기기 관리 = **단일 기기로 확정**(1계정=1기기) | 없음 — `DeviceContext`가 이미 맥주소 1개만 저장하는 구조라 그대로 최종 모델 |
+| [O5](../planning/decisions/open-questions.md#o5) | 하단 탭 = **4탭 유지 확정**, 통계 탭 내용도 확정(날짜별 센서 그래프 + 이상유무 요약) | 없음 — `stats.tsx`(DateNav+CalendarModal+MiniLineChart) 구현 완료, "이 날짜 기록 보기"로 `record.tsx`(`?date=` 필터)와 연결됨 |
+| [O8](../planning/decisions/open-questions.md#o8) | 경보 해제 = 앱은 **요청만**, 승인 판단은 서버가 내부 규칙으로 함 | 완료 — `alarm.tsx`·설정 탭 둘 다 "경보 해제 요청" 버튼 있음(`hooks/useAlarmRelease.ts` 공용), `services/alarmRelease.ts`로 요청 전송, 서버 없어서 항상 실패로 표시 |
 
 ## 명령어
 
