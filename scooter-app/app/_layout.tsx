@@ -43,7 +43,7 @@ function Navigation() {
   const wasAlarm = useRef(false);
   useEffect(() => {
     if (!pairedMac) return;
-    const isAlarm = state === "alarm";
+    const isAlarm = state === "ALARM";
     if (isAlarm && !wasAlarm.current) {
       router.push("/alarm");
     }

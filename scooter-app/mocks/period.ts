@@ -25,7 +25,7 @@ export interface PeriodSummary {
 function channelDefaults(): Record<string, ChannelStateContent> {
   const result: Record<string, ChannelStateContent> = {};
   for (const ch of CHANNELS) {
-    result[ch.key] = ch.states.normal;
+    result[ch.key] = ch.states.NORMAL;
   }
   return result;
 }
@@ -67,7 +67,7 @@ const WEEK_SUMMARY: PeriodSummary = {
       speed: "8/7 14:32 최고",
       lv: "warn",
       tech: "+3.1 z · +2.4 z/min",
-      series: CHANNELS[0].states.watch.series,
+      series: CHANNELS[0].states.WATCH.series,
     },
   },
   events: [
