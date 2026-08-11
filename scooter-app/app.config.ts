@@ -74,6 +74,13 @@ const config: ExpoConfig = {
       },
     ],
     [
+      "expo-notifications",
+      {
+        icon: "./assets/images/icon.png",
+        color: "#0066ff",
+      },
+    ],
+    [
       "expo-location",
       {
         locationWhenInUsePermission: "킥보드 위치를 지도에 표시하려면 위치 정보가 필요합니다.",
