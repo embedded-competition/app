@@ -1,12 +1,19 @@
 // 항목 상세 화면. planning/prototypes/b-live-monitor.html 화면 2를 그대로 옮긴 것.
 // 게이지·차트·판단근거·비교는 상태 단위(STATE_CONTENT) 공통 템플릿이고, 채널마다 다른 건
 // 이름·설명·각주뿐이다 — 프로토타입도 배터리 가스(voc) 채널 하나만 실제로 디자인했기 때문에 그 구조를 그대로 따른다.
+//
+// 기간 조회 중(period !== "live")일 땐 이 라이브 화면을 그대로 보여주지 않는다 — 게이지·판단근거·
+// 비교는 전부 "지금" 개념이라 기간과 섞으면 뭘 보고 있는지 헷갈린다(B안 확정). 대신
+// planning/prototypes/e-single-tab-period-detail-B.html 화면 3 그대로 기간 전용 화면을 보여준다:
+// 판정(그 기간 중 최고 수준) → 요약 → 기간 세그먼트 → 연속 차트 → 이 기간의 기록 → 원본 수치.
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 import { useAppState } from "@/contexts/AppStateContext";
-import { CHANNELS, CHANNEL_EXPLAIN, CHANNEL_FOOTNOTE, OWNER_NAME, STATE_CONTENT } from "@/mocks/channels";
+import { usePeriod } from "@/contexts/PeriodContext";
+import { CHANNELS, CHANNEL_EXPLAIN, CHANNEL_FOOTNOTE, OWNER_NAME, STATE_CONTENT, type AppState } from "@/mocks/channels";
+import { getPeriodSummary } from "@/mocks/period";
 import { RichText } from "@/components/common/RichText";
 import { ChannelGauge } from "@/components/channel/ChannelGauge";
 import { TrendChart } from "@/components/chart/TrendChart";
@@ -14,19 +21,25 @@ import { SignatureRow } from "@/components/detail/SignatureRow";
 import { CompareRow } from "@/components/detail/CompareRow";
 import { RawValuesDisclosure } from "@/components/channel/RawValuesDisclosure";
 import { NoDataState } from "@/components/dev/NoDataState";
+import { PeriodSegment } from "@/components/period/PeriodSegment";
 
 const TONE_KEY = { ok: "positive", warn: "cautionary", bad: "negative" } as const;
 const ACC_KEY = { ok: "accGreen", warn: "accOrange", bad: "accRed" } as const;
+const LEVEL_TEXT = { ok: "정상", warn: "주의", bad: "위험" } as const;
 
 export default function ChannelDetailScreen() {
   const { channel: channelKey } = useLocalSearchParams<{ channel: string }>();
   const scheme = useScheme();
   const t = colors[scheme];
   const { state, isLive, setDevState } = useAppState();
+  const { period } = usePeriod();
 
   const channel = CHANNELS.find((c) => c.key === channelKey) ?? CHANNELS[0];
+  const periodSummary = period.kind === "live" ? null : getPeriodSummary(period.kind === "custom" ? "week" : period.kind);
 
-  if (state === null) {
+  // 기간 조회는 라이브 연결 여부와 무관한 목데이터 미리보기라, "연결된 기기 없음" 게이트는
+  // period가 "지금"일 때만 적용한다(메인 화면과 동일한 원칙).
+  if (period.kind === "live" && state === null) {
     return (
       <>
         <Stack.Screen options={{ title: channel.name }} />
@@ -35,7 +48,88 @@ export default function ChannelDetailScreen() {
     );
   }
 
-  const content = STATE_CONTENT[state];
+  if (periodSummary) {
+    const periodChannel = periodSummary.channels[channel.key];
+    const tone = t[TONE_KEY[periodChannel.lv]];
+    const acc = t[ACC_KEY[periodChannel.lv]];
+    const isPeakChannel = channel.key === periodSummary.peakChannelKey && periodChannel.lv !== "ok";
+
+    return (
+      <>
+        <Stack.Screen options={{ title: channel.name }} />
+        <ScrollView style={{ backgroundColor: t.bgAlt }} contentContainerStyle={styles.content}>
+          <View style={styles.head}>
+            <Text style={[styles.question, { color: t.labelStrong }]}>
+              {periodSummary.rangeLabel} 동안{"\n"}
+              {channel.name} 상태입니다.
+            </Text>
+            <View style={styles.verdictRow}>
+              <View style={[styles.dot, { backgroundColor: tone }]} />
+              <Text style={{ color: acc, fontSize: 12.5, fontWeight: "600" }}>
+                {isPeakChannel ? `이 기간 중 ${LEVEL_TEXT[periodChannel.lv]} 단계까지 올라간 적이 있어요` : "이 기간 동안 평소와 같았습니다"}
+              </Text>
+            </View>
+          </View>
+
+          <PeriodSegment variant="detail" />
+          <Text style={[styles.rangeLabel, { color: t.labelAlt }]}>{periodSummary.rangeLabel}</Text>
+
+          <View style={[styles.easy, { backgroundColor: t.fillAlt }]}>
+            <Text style={{ color: t.labelNormal, fontSize: 13, lineHeight: 21 }}>
+              {isPeakChannel
+                ? `이 기간 동안 ${channel.name}에서 최대 ${periodChannel.val} 늘어난 적이 있어요. ${periodSummary.ribbon.sub}`
+                : `이 기간 동안 ${channel.name} 값은 평소와 같았습니다. 특별히 하실 일은 없습니다.`}
+            </Text>
+          </View>
+
+          <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>{periodSummary.rangeLabel} 동안</Text>
+          <TrendChart
+            series={periodSummary.series}
+            tone={tone}
+            xLabels={periodSummary.seriesLabels}
+            baselineValue={periodSummary.baseline}
+            legendLabels={["날짜별 최고치 추이", "이 킥보드의 평소 수준"]}
+          />
+          <Text style={[styles.hint, { color: t.labelAlt }]}>날짜별로 그때 가장 높았던 값을 이어서 그렸습니다.</Text>
+
+          <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>이 기간의 기록</Text>
+          {periodSummary.events.length === 0 ? (
+            <Text style={{ color: t.labelAssist, fontSize: 12 }}>이 기간엔 기록이 없어요.</Text>
+          ) : (
+            periodSummary.events.map((e, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.recordRow,
+                  i < periodSummary.events.length - 1 && { borderBottomWidth: 1, borderBottomColor: t.lineWeak },
+                ]}
+              >
+                <Text style={{ color: t.labelNormal, fontSize: 12, flex: 1 }}>{e.description}</Text>
+                <Text style={{ color: t.labelAssist, fontSize: 11 }}>{e.time}</Text>
+              </View>
+            ))
+          )}
+
+          <View style={[styles.syncNote, { backgroundColor: t.fillAlt }]}>
+            <Text style={{ color: t.labelAlt, fontSize: 11 }}>
+              🔗 이 기간이 메인 화면에도 함께 표시돼요 — 뒤로 가면 같은 기간으로 보입니다.
+            </Text>
+          </View>
+
+          <RawValuesDisclosure
+            rows={[
+              { label: "이 기간 중 최고", hint: "그 기간 안에서 가장 높았던 값", value: periodChannel.val },
+              { label: "변화 속도", hint: "그때 얼마나 빠르게 변했는지", value: periodChannel.speed },
+              { label: "원본 지표", hint: "센서 원본값 기준 편차·속도", value: periodChannel.tech },
+            ]}
+          />
+        </ScrollView>
+      </>
+    );
+  }
+
+  // 라이브 모드(period.kind === "live") — 지금 상태 그대로.
+  const content = STATE_CONTENT[state as AppState];
   const tone = t[TONE_KEY[content.verdictLevel]];
   const acc = t[ACC_KEY[content.verdictLevel]];
 
@@ -81,6 +175,9 @@ export default function ChannelDetailScreen() {
           점선은 이 킥보드가 평소에 머무는 자리입니다. 파란 선이{" "}
           <Text style={{ fontWeight: "700" }}>점선에서 크게 벌어질수록</Text> 이상 신호입니다.
         </Text>
+
+        <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>기간 조회</Text>
+        <PeriodSegment variant="detail" />
 
         <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>경보는 이렇게 판단합니다</Text>
         <Text style={[styles.sectionSub, { color: t.labelAlt }]}>
@@ -128,6 +225,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: "600", marginTop: 22, marginBottom: 3 },
   sectionSub: { fontSize: 11.5, marginBottom: 4 },
   hint: { fontSize: 11, marginTop: 8, lineHeight: 17 },
+  rangeLabel: { fontSize: 11.5, marginTop: 8 },
+  recordRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 10, paddingVertical: 10 },
+  syncNote: { borderRadius: 12, padding: 12, marginTop: 14 },
   cta: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 20 },
   ctaText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   footnote: { fontSize: 10.5, lineHeight: 17, marginTop: 16, paddingTop: 14, borderTopWidth: 1 },

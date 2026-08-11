@@ -1,4 +1,7 @@
-// 날짜 텍스트를 탭하면 뜨는 달력. 네이티브 모듈 없이 순수 RN으로 구현 — 새 dev-client 빌드 필요 없음.
+// 기간 선택용 범위 캘린더. 숙소 예약 캘린더처럼 시작일을 먼저 찍고 종료일을 찍으면 그 사이가
+// 채워지면서 "OO일간"이 표시된다 — 단일 날짜만 찍고 끝(자동으로 오늘까지)이던 예전 버전은
+// 어디서부터 어디까지를 고른 건지 안 보여서 부자연스럽다는 피드백으로 이렇게 바뀌었다.
+// 네이티브 모듈 없이 순수 RN으로 구현 — 새 dev-client 빌드 필요 없음.
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "@/constants/tokens";
@@ -22,24 +25,33 @@ function getMonthMatrix(year: number, month: number): (Date | null)[][] {
   return weeks;
 }
 
+function formatKoreanDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일(${WEEKDAYS[d.getDay()]})`;
+}
+
+function dayCount(from: string, to: string): number {
+  return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
+}
+
 export function CalendarModal({
   visible,
-  selectedDate,
-  onSelect,
+  onSelectRange,
   onClose,
 }: {
   visible: boolean;
-  selectedDate: string; // YYYY-MM-DD
-  onSelect: (date: string) => void;
+  onSelectRange: (from: string, to: string) => void;
   onClose: () => void;
 }) {
   const scheme = useScheme();
   const t = colors[scheme];
-  const selected = new Date(selectedDate);
-  const [viewYear, setViewYear] = useState(selected.getFullYear());
-  const [viewMonth, setViewMonth] = useState(selected.getMonth());
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
 
-  const today = toDateString(new Date());
+  const today = toDateString(now);
   const weeks = getMonthMatrix(viewYear, viewMonth);
 
   const shiftMonth = (delta: number) => {
@@ -48,9 +60,43 @@ export function CalendarModal({
     setViewMonth(d.getMonth());
   };
 
+  const handlePress = (dStr: string) => {
+    // 아직 시작일이 없거나, 시작·종료가 이미 다 찍혀 있으면(재선택) 새로 시작일부터.
+    if (!rangeStart || (rangeStart && rangeEnd)) {
+      setRangeStart(dStr);
+      setRangeEnd(null);
+      return;
+    }
+    // 시작일보다 이전 날짜를 찍으면 그게 새 시작일이 된다.
+    if (dStr < rangeStart) {
+      setRangeStart(dStr);
+    } else {
+      setRangeEnd(dStr);
+    }
+  };
+
+  const confirm = () => {
+    if (!rangeStart || !rangeEnd) return;
+    onSelectRange(rangeStart, rangeEnd);
+    setRangeStart(null);
+    setRangeEnd(null);
+  };
+
+  const handleClose = () => {
+    setRangeStart(null);
+    setRangeEnd(null);
+    onClose();
+  };
+
+  const infoText = rangeStart && rangeEnd
+    ? `${formatKoreanDate(rangeStart)} ~ ${formatKoreanDate(rangeEnd)} · ${dayCount(rangeStart, rangeEnd)}일간`
+    : rangeStart
+      ? `${formatKoreanDate(rangeStart)} ~ 끝나는 날짜를 선택하세요`
+      : "시작하는 날짜를 선택하세요";
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <Pressable style={styles.backdrop} onPress={handleClose}>
         <Pressable style={[styles.sheet, { backgroundColor: t.bgElev }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.header}>
             <Pressable onPress={() => shiftMonth(-1)} hitSlop={8}>
@@ -78,19 +124,26 @@ export function CalendarModal({
                 if (!day) return <View key={di} style={styles.cell} />;
                 const dStr = toDateString(day);
                 const isFuture = dStr > today;
-                const isSelected = dStr === selectedDate;
+                const isStart = dStr === rangeStart;
+                const isEnd = dStr === rangeEnd;
+                const isEdge = isStart || isEnd;
+                const isBetween = !!rangeStart && !!rangeEnd && dStr > rangeStart && dStr < rangeEnd;
                 return (
                   <Pressable
                     key={di}
                     disabled={isFuture}
-                    onPress={() => onSelect(dStr)}
-                    style={[styles.cell, isSelected && { backgroundColor: t.primary, borderRadius: 8 }]}
+                    onPress={() => handlePress(dStr)}
+                    style={[
+                      styles.cell,
+                      isBetween && { backgroundColor: `${t.primary}22` },
+                      isEdge && { backgroundColor: t.primary, borderRadius: 8 },
+                    ]}
                   >
                     <Text
                       style={{
-                        color: isFuture ? t.labelAssist : isSelected ? "#fff" : t.labelNormal,
+                        color: isFuture ? t.labelAssist : isEdge ? "#fff" : t.labelNormal,
                         fontSize: 13,
-                        fontWeight: isSelected ? "700" : "400",
+                        fontWeight: isEdge ? "700" : "400",
                       }}
                     >
                       {day.getDate()}
@@ -100,6 +153,16 @@ export function CalendarModal({
               })}
             </View>
           ))}
+
+          <Text style={[styles.info, { color: t.labelNeutral }]}>{infoText}</Text>
+
+          <Pressable
+            disabled={!(rangeStart && rangeEnd)}
+            onPress={confirm}
+            style={[styles.confirmBtn, { backgroundColor: rangeStart && rangeEnd ? t.primary : t.fillStrong }]}
+          >
+            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>확인</Text>
+          </Pressable>
         </Pressable>
       </Pressable>
     </Modal>
@@ -113,4 +176,6 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: "row", justifyContent: "space-between" },
   weekday: { width: 36, textAlign: "center", fontSize: 11, marginBottom: 4 },
   cell: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  info: { textAlign: "center", fontSize: 12.5, fontWeight: "600", marginTop: 10 },
+  confirmBtn: { marginTop: 12, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
 });
