@@ -19,7 +19,7 @@
 4. (ALARM 판정되면 서버가 알아서 푸시 발송 — 앱이 뭘 부를 필요 없음)
 5. POST /devices/{id}/alarm/release   사용자가 해제 요청할 때만
 ```
-기록·통계·fleet 비교 조회는 이 순서와 무관하게 각 탭 진입 시 아무 때나 부르면 된다.
+기록·기간별 요약·fleet 비교 조회는 이 순서와 무관하게 화면 진입 시 아무 때나 부르면 된다.
 
 ## 공통 에러
 
@@ -80,21 +80,47 @@ Authorization: Bearer <deviceToken>
   ]
 }
 ```
-시간당 1개 × 센서 4종 = 하루 96개 정도라 항상 하루치를 통째로 반환한다(압축 파라미터 없음).
+시간당 1개 × 센서 4종 = 하루 96개 정도라 항상 하루치를 통째로 반환한다(압축 파라미터 없음). 하루짜리 조회("오늘")에만 쓴다 — 여러 날짜를 볼 때는 아래 "기간별 요약 조회"를 쓴다.
+
+**기간별 요약 조회** ("최근 7일"·"기간 선택" — 여러 날짜를 한 번에 볼 때)
+```
+GET /devices/{deviceId}/telemetry/period-summary?from=2026-08-04&to=2026-08-10
+Authorization: Bearer <deviceToken>
+
+→ 200
+{
+  "from": "2026-08-04",
+  "to": "2026-08-10",
+  "state": "WATCH",
+  "peakAt": "2026-08-07T14:32:00Z",
+  "channels": {
+    "gas": { "state": "WATCH", "peakDevZ": 3.1, "peakSlope": 2.4 },
+    "h2": { "state": "NORMAL" },
+    "co": { "state": "NORMAL" },
+    "pressure": { "state": "NORMAL" }
+  },
+  "dailyPeaks": [
+    { "date": "2026-08-04", "gas": { "devZ": 0.4 }, "h2": { "mv": 2234 } },
+    { "date": "2026-08-07", "gas": { "devZ": 3.1 }, "h2": { "mv": 2251 } }
+  ]
+}
+```
+날짜별 상세(시간당 96개)를 며칠치씩 그대로 다 내려보내면 프론트가 그중 "며칠 몇 시에 뭐가 얼마나 튀었는지"를 직접 계산해야 한다 — 판정 로직은 서버 책임([A1](planning/decisions/algorithm.md#a1))이라 그건 안 된다. 그래서 이 API는 처음부터 **하루 단위로 이미 집계된 최고치**(`state`/`peakDevZ` 등)와 **기간 전체에서 언제·어느 채널이 가장 심했는지**(`state`/`peakAt`/`channels`)를 서버가 계산해서 내려준다 — `dailyPeaks`는 상세보기의 날짜별 추이 그래프용, 나머지는 리본·채널 카드용. `channels`/`dailyPeaks` 안의 필드명은 "현재 상태 조회"(`telemetry/latest`)와 맞춘다.
 
 **기록(이벤트) 조회**
 ```
-GET /devices/{deviceId}/events?since=2026-08-01T00:00:00Z
+GET /devices/{deviceId}/events?since=2026-08-04T00:00:00Z&until=2026-08-10T23:59:59Z
 Authorization: Bearer <deviceToken>
 
 → 200
 {
   "items": [
-    { "id": "evt_1", "timestamp": "2026-08-05T00:00:00Z", "kind": "state_change", "description": "정상 → 주의 전환" },
-    { "id": "evt_2", "timestamp": "2026-08-05T00:05:00Z", "kind": "suppressed", "description": "습도 급변으로 가스 채널 승격 보류 (오경보 아님)" }
+    { "id": "evt_1", "timestamp": "2026-08-07T14:32:00Z", "kind": "state_change", "description": "정상 → 주의 전환" },
+    { "id": "evt_2", "timestamp": "2026-08-05T09:07:00Z", "kind": "suppressed", "description": "습도 급변으로 가스 채널 승격 보류 (오경보 아님)" }
   ]
 }
 ```
+`until`은 선택 — 생략하면 지금까지("최근 기록" 같은 열린 조회). "최근 7일"·"기간 선택"처럼 범위가 정해진 조회는 `since`+`until` 둘 다 넘긴다.
 
 **같은 모델 비교 조회**
 ```
