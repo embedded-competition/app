@@ -6,9 +6,10 @@ import { colors } from "@/constants/tokens";
 import type { AppState } from "@/mocks/channels";
 
 const OPTIONS: { key: AppState; label: string }[] = [
-  { key: "normal", label: "정상" },
-  { key: "watch", label: "주의" },
-  { key: "alarm", label: "경보" },
+  { key: "NORMAL", label: "정상" },
+  { key: "WATCH", label: "주의" },
+  { key: "ALARM", label: "경보" },
+  { key: "FAULT", label: "고장" },
 ];
 
 export function DevStateToggle({

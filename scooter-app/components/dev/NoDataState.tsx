@@ -6,9 +6,10 @@ import { useScheme } from "@/contexts/ThemeModeContext";
 import type { AppState } from "@/mocks/channels";
 
 const PREVIEW_OPTIONS: { key: AppState; label: string }[] = [
-  { key: "normal", label: "정상 미리보기" },
-  { key: "watch", label: "주의 미리보기" },
-  { key: "alarm", label: "경보 미리보기" },
+  { key: "NORMAL", label: "정상 미리보기" },
+  { key: "WATCH", label: "주의 미리보기" },
+  { key: "ALARM", label: "경보 미리보기" },
+  { key: "FAULT", label: "고장 미리보기" },
 ];
 
 export function NoDataState({ onPreview }: { onPreview: (state: AppState) => void }) {

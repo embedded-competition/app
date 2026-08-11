@@ -20,13 +20,14 @@ import { usePeriod } from "@/contexts/PeriodContext";
 import { LiveBadge } from "@/components/badges/LiveBadge";
 import { DevStateToggle } from "@/components/dev/DevStateToggle";
 import { NoDataState } from "@/components/dev/NoDataState";
+import { FaultState } from "@/components/dev/FaultState";
 import { DeviceMap } from "@/components/map/DeviceMap";
 import { StatusRibbon } from "@/components/ribbon/StatusRibbon";
 import { ChannelCard } from "@/components/channel/ChannelCard";
 import { PeriodSegment } from "@/components/period/PeriodSegment";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { RecordAccordion, type RecordItem } from "@/components/record/RecordAccordion";
-import { ADDRESS_MAIN, CHANNELS, STATE_CONTENT, mockEvents, type AppState } from "@/mocks/channels";
+import { ADDRESS_MAIN, CHANNELS, STATE_CONTENT, mockEvents, type ClassifiedState } from "@/mocks/channels";
 import { getPeriodSummary } from "@/mocks/period";
 
 function formatEventTime(iso: string) {
@@ -89,9 +90,30 @@ export default function MainScreen() {
     );
   }
 
+  // FAULT(기기 고장)는 가스 심각도 개념이 아니라서 리본·게이지·채널 그리드 틀에 안 맞는다 —
+  // state===null과 마찬가지로 별도 화면으로 뺀다. DevStateToggle은 그대로 둬서 다른 상태로
+  // 바로 전환해볼 수 있게 한다.
+  if (period.kind === "live" && state === "FAULT") {
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bgAlt }}>
+        {header}
+        {settingsOverlay}
+        {!isLive && (
+          <View style={styles.previewBar}>
+            <DevStateToggle state={state} onChange={setDevState} />
+            <Pressable onPress={() => setDevState(null)}>
+              <Text style={{ color: t.labelAlt, fontSize: 12 }}>미리보기 종료</Text>
+            </Pressable>
+          </View>
+        )}
+        <FaultState />
+      </View>
+    );
+  }
+
   const isLivePeriod = period.kind === "live";
   const periodSummary = isLivePeriod ? null : getPeriodSummary(period.kind === "custom" ? "week" : period.kind);
-  const liveState = state as AppState; // isLivePeriod가 true면 위 게이트에서 이미 null이 아님을 보장함
+  const liveState = state as ClassifiedState; // 위 두 게이트가 null/FAULT를 이미 걸러냈음을 보장함
 
   const ribbonContent = isLivePeriod ? STATE_CONTENT[liveState] : periodSummary!.ribbon;
   const pinLevel = isLivePeriod ? STATE_CONTENT[liveState].pinLevel : periodSummary!.channels[periodSummary!.peakChannelKey].lv;
