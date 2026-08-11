@@ -1,9 +1,10 @@
-// 앱 전역 Provider와 네비게이션 크롬(탭바·헤더) 설정.
+// 앱 전역 Provider와 네비게이션 크롬(헤더) 설정. 하단 탭바는 없다(B안 확정) — index가 유일한
+// 메인 화면이고, 설정은 그 화면 안에서 펼쳐지는 패널이다.
 // 화면 내부 콘텐츠는 각 컴포넌트가 useScheme()으로 알아서 처리하지만, React Navigation의
-// 탭바/헤더 배경·테두리·활성색은 ThemeProvider 없이는 항상 라이트로 고정된다.
+// 헤더 배경·테두리·활성색은 ThemeProvider 없이는 항상 라이트로 고정된다.
 //
 // 기기(맥주소) 등록은 텔레메트리보다 앞선 게이트다 — 등록 안 된 기기의 데이터는 애초에
-// 있을 수 없으니, 등록 전에는 탭 네비게이션 자체를 안 띄우고 PairingForm만 보여준다.
+// 있을 수 없으니, 등록 전에는 메인 화면 대신 PairingForm만 보여준다.
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -11,6 +12,7 @@ import { useEffect, useRef } from "react";
 import { AppStateProvider, useAppState } from "@/contexts/AppStateContext";
 import { DeviceProvider, useDevice } from "@/contexts/DeviceContext";
 import { ThemeModeProvider, useScheme } from "@/contexts/ThemeModeContext";
+import { PeriodProvider } from "@/contexts/PeriodContext";
 import { colors } from "@/constants/tokens";
 import { PairingForm } from "@/components/pairing/PairingForm";
 
@@ -19,7 +21,9 @@ export default function RootLayout() {
     <ThemeModeProvider>
       <DeviceProvider>
         <AppStateProvider>
-          <Navigation />
+          <PeriodProvider>
+            <Navigation />
+          </PeriodProvider>
         </AppStateProvider>
       </DeviceProvider>
     </ThemeModeProvider>
@@ -67,7 +71,7 @@ function Navigation() {
     <ThemeProvider value={navTheme}>
       {pairedMac ? (
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="index" />
           <Stack.Screen
             name="detail/[channel]"
             options={{ headerShown: true, title: "항목 상세" }}

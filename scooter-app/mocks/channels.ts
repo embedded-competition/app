@@ -149,6 +149,18 @@ export interface StateContent {
   cta: string;
 }
 
+// StatusRibbon이 실제로 쓰는 필드만 모은 타입. StateContent는 구조적으로 이 타입을 만족하므로
+// 기존 호출부(STATE_CONTENT[state])는 그대로 쓸 수 있고, 기간 조회처럼 StateContent 전체를
+// 만들 필요 없는 곳에서는 이 좁은 타입만 채우면 된다.
+export interface RibbonContent {
+  msg: string;
+  sub: string;
+  btn: string;
+  danger: boolean;
+  cursorPct: number;
+  stage: number;
+}
+
 export const STATE_CONTENT: Record<AppState, StateContent> = {
   normal: {
     msg: "지금은 이상 없어요",
