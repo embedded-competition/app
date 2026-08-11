@@ -29,6 +29,7 @@ import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { RecordAccordion, type RecordItem } from "@/components/record/RecordAccordion";
 import { ADDRESS_MAIN, CHANNELS, STATE_CONTENT, mockEvents, type ClassifiedState } from "@/mocks/channels";
 import { getPeriodSummary } from "@/mocks/period";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 function formatEventTime(iso: string) {
   const d = new Date(iso);
@@ -46,6 +47,8 @@ export default function MainScreen() {
   useEffect(() => {
     Location.requestForegroundPermissionsAsync().catch(() => {});
   }, []);
+
+  usePushNotifications();
 
   const header = (
     <View
