@@ -39,7 +39,7 @@ interface TelemetrySource {
 
 | 필드 | 타입 | 상태 | 화면 사용처 | 비고 |
 |---|---|---|---|---|
-| `state` | `NodeState` | 있음 | 상태 리본, 탭바 배지, 경보 화면 진입 | §1의 `AppState`와 동일 개념 |
+| `state` | `NodeState` | 있음 | 상태 리본, `LiveBadge`, 경보 화면 진입 | §1의 `AppState`와 동일 개념 |
 | `latched` | `boolean` | 있음 | 경보가 계속 유지 중인지 표시(참고용) | A7 — latch 해제 전까지 true. 해제는 앱이 요청만 보내고 승인은 서버가 판단([O8](../../../planning/decisions/open-questions.md#o8), `../../../api-spec.md`의 `alarm/release`) |
 | `gas.{sraw,baseline,devZ,slope}` | `GasChannel` | 일부 (내부값 미전송 → [O2](../../../planning/decisions/open-questions.md#o2)) | 배터리 가스 카드·게이지·원본수치 접이식 | PRIMARY 채널, S1 |
 | `h2.{mv,mvAvg,rsKohm,slope}` | `HydrogenChannel` | 있음 | 과충전 가스 카드 | S2 |
@@ -70,7 +70,7 @@ interface TelemetrySource {
 
 | # | 질문 | 지금 앱이 임시로 하는 것 | Phase 2에서 바뀔 것 |
 |---|---|---|---|
-| [O5](../../../planning/decisions/open-questions.md#o5) | 탭 3개 vs 4개(+통계) | 4탭 유지, `stats.tsx`는 안내만 | 확정되면 탭 구조·집계 API 필요 여부 결정 |
+| [O5](../../../planning/decisions/open-questions.md#o5) | 탭 3개 vs 4개(+통계) | **최종적으로 탭바 자체를 없앴다**(하단 탭 4개 → 메인 화면 하나) — 기록은 아코디언, 통계는 메인·상세보기의 "기간 조회"(지금/오늘/최근 7일/기간선택)로 흡수됨. 설정은 헤더 햄버거로 여는 오버레이 | `telemetry/history`(하루)만으론 부족해서 `telemetry/period-summary`(여러 날 집계) API가 새로 필요해짐 — `../../api-spec.md` 참고 |
 
 > [O9](../../../planning/decisions/open-questions.md#o9)(압력 채널 센서 종류)는 이 표에서 뺐다 — 어떤 센서를 쓰든 앱은 정규화된 `pressure` 값만 받으므로 인터페이스에 영향이 없다(임베디드 하드웨어 결정일 뿐). `pressure` 필드 자체는 여전히 "미착수" 상태([§3](#3-목표-데이터-모델-phase-2--아직-미구현) 표 참고) — 센서가 뭐든 상관없이 임베디드 쪽 구현이 끝나야 채워진다.
 
@@ -85,7 +85,7 @@ interface TelemetrySource {
 
 ## 6. 기기 등록 (페어링)
 
-텔레메트리를 받으려면 그 전에 **어떤 킥보드인지**부터 정해져야 한다. 사용자가 점검장비(MCU) 라벨의 MAC 주소를 앱에 입력하면 서버가 그 MAC으로 킥보드를 계정에 연동한다 — 등록 전에는 앱이 아예 탭 화면을 안 띄우고 등록 화면만 보여준다(`app/_layout.tsx`).
+텔레메트리를 받으려면 그 전에 **어떤 킥보드인지**부터 정해져야 한다. 사용자가 점검장비(MCU) 라벨의 MAC 주소를 앱에 입력하면 서버가 그 MAC으로 킥보드를 계정에 연동한다 — 등록 전에는 앱이 아예 메인 화면을 안 띄우고 등록 화면만 보여준다(`app/_layout.tsx`).
 
 ```ts
 interface DeviceRegistryResult {
