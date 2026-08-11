@@ -4,13 +4,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
-import { STEPPER_LABELS, type StateContent } from "@/mocks/channels";
+import { STEPPER_LABELS, type RibbonContent } from "@/mocks/channels";
 
 export function StatusRibbon({
   content,
   onReportPress,
 }: {
-  content: StateContent;
+  content: RibbonContent;
   onReportPress?: () => void;
 }) {
   const scheme = useScheme();

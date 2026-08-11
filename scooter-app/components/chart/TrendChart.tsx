@@ -4,28 +4,45 @@ import { useScheme } from "@/contexts/ThemeModeContext";
 import Svg, { Line, Polygon, Polyline } from "react-native-svg";
 import { colors } from "@/constants/tokens";
 
-export function TrendChart({ series, tone }: { series: number[]; tone: string }) {
+const DEFAULT_X_LABELS = ["60초 전", "30초 전", "지금"];
+const DEFAULT_LEGEND: [string, string] = ["지금 신호", "이 킥보드의 평소 수준"];
+
+export function TrendChart({
+  series,
+  tone,
+  xLabels = DEFAULT_X_LABELS,
+  baselineValue = 100,
+  legendLabels = DEFAULT_LEGEND,
+}: {
+  series: number[];
+  tone: string;
+  /** x축 라벨. 기본은 "최근 1분" 차트용 3개 — 기간별 차트에서는 날짜/시간 라벨 배열을 넘긴다. */
+  xLabels?: string[];
+  /** 점선 기준선 값. 시리즈와 같은 스케일이어야 한다(기본 100은 기존 "최근 1분" 목데이터 스케일). */
+  baselineValue?: number;
+  legendLabels?: [string, string];
+}) {
   const scheme = useScheme();
   const t = colors[scheme];
   const W = 320;
   const H = 150;
-  const max = Math.max(...series, 120) * 1.1;
+  const max = Math.max(...series, baselineValue, 1) * 1.1;
   const points = series
     .map((v, i) => `${((i * W) / (series.length - 1)).toFixed(1)},${(H - (v / max) * H).toFixed(1)}`)
     .join(" ");
   const areaPoints = `0,${H} ${points} ${W},${H}`;
-  const baselineY = (H - (100 / max) * H).toFixed(1);
+  const baselineY = (H - (baselineValue / max) * H).toFixed(1);
 
   return (
     <View style={[styles.card, { backgroundColor: t.bgElev, borderColor: t.lineWeak }]}>
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendMark, { backgroundColor: tone }]} />
-          <Text style={{ color: t.labelAlt, fontSize: 10.5 }}>지금 신호</Text>
+          <Text style={{ color: t.labelAlt, fontSize: 10.5 }}>{legendLabels[0]}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendMark, { backgroundColor: t.labelAssist }]} />
-          <Text style={{ color: t.labelAlt, fontSize: 10.5 }}>이 킥보드의 평소 수준</Text>
+          <Text style={{ color: t.labelAlt, fontSize: 10.5 }}>{legendLabels[1]}</Text>
         </View>
       </View>
       <Svg width="100%" height={150} viewBox={`0 0 ${W} ${H}`}>
@@ -34,9 +51,11 @@ export function TrendChart({ series, tone }: { series: number[]; tone: string })
         <Polyline points={points} fill="none" stroke={tone} strokeWidth={2.2} strokeLinejoin="round" />
       </Svg>
       <View style={styles.xlab}>
-        <Text style={{ color: t.labelAlt, fontSize: 10 }}>60초 전</Text>
-        <Text style={{ color: t.labelAlt, fontSize: 10 }}>30초 전</Text>
-        <Text style={{ color: t.labelAlt, fontSize: 10 }}>지금</Text>
+        {xLabels.map((label) => (
+          <Text key={label} style={{ color: t.labelAlt, fontSize: 10 }}>
+            {label}
+          </Text>
+        ))}
       </View>
     </View>
   );
