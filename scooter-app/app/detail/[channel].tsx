@@ -12,15 +12,20 @@ import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 import { useAppState } from "@/contexts/AppStateContext";
 import { usePeriod } from "@/contexts/PeriodContext";
-import { CHANNELS, CHANNEL_EXPLAIN, CHANNEL_FOOTNOTE, OWNER_NAME, STATE_CONTENT, type AppState } from "@/mocks/channels";
+import { CHANNELS, CHANNEL_EXPLAIN, CHANNEL_FOOTNOTE, OWNER_NAME, STATE_CONTENT, type ClassifiedState } from "@/mocks/channels";
 import { getPeriodSummary } from "@/mocks/period";
 import { RichText } from "@/components/common/RichText";
 import { ChannelGauge } from "@/components/channel/ChannelGauge";
 import { TrendChart } from "@/components/chart/TrendChart";
 import { SignatureRow } from "@/components/detail/SignatureRow";
 import { CompareRow } from "@/components/detail/CompareRow";
-import { RawValuesDisclosure } from "@/components/channel/RawValuesDisclosure";
+// 실 백엔드(Orca Backend)는 raw 센서값(sraw/mv/baseline)을 아예 안 보낸다 — 정규화된 devZ/slope만
+// 준다. "센서 원본 수치 보기" 접이식은 애초에 보여줄 실데이터가 없는 기능이라 잠시 꺼둔다.
+// backend-requests.md·api-spec.md 참고. 완전히 지우지는 않음 — 나중에 devZ/slope 기반으로
+// 다시 쓸 수도 있어서 컴포넌트 자체(components/channel/RawValuesDisclosure.tsx)는 남겨둔다.
+// import { RawValuesDisclosure } from "@/components/channel/RawValuesDisclosure";
 import { NoDataState } from "@/components/dev/NoDataState";
+import { FaultState } from "@/components/dev/FaultState";
 import { PeriodSegment } from "@/components/period/PeriodSegment";
 
 const TONE_KEY = { ok: "positive", warn: "cautionary", bad: "negative" } as const;
@@ -44,6 +49,17 @@ export default function ChannelDetailScreen() {
       <>
         <Stack.Screen options={{ title: channel.name }} />
         <NoDataState onPreview={setDevState} />
+      </>
+    );
+  }
+
+  // FAULT(기기 고장)는 게이지·판단근거 같은 "지금 얼마나 심각한지" 틀에 안 맞아서(가스 심각도
+  // 개념이 아님) 메인 화면과 마찬가지로 별도 화면으로 뺀다.
+  if (period.kind === "live" && state === "FAULT") {
+    return (
+      <>
+        <Stack.Screen options={{ title: channel.name }} />
+        <FaultState />
       </>
     );
   }
@@ -116,20 +132,22 @@ export default function ChannelDetailScreen() {
             </Text>
           </View>
 
+          {/* 원본 수치 접이식 — 실서버가 raw 값을 안 줘서 잠시 꺼둠. 위 import 주석 참고.
           <RawValuesDisclosure
             rows={[
               { label: "이 기간 중 최고", hint: "그 기간 안에서 가장 높았던 값", value: periodChannel.val },
               { label: "변화 속도", hint: "그때 얼마나 빠르게 변했는지", value: periodChannel.speed },
               { label: "원본 지표", hint: "센서 원본값 기준 편차·속도", value: periodChannel.tech },
             ]}
-          />
+          /> */}
         </ScrollView>
       </>
     );
   }
 
-  // 라이브 모드(period.kind === "live") — 지금 상태 그대로.
-  const content = STATE_CONTENT[state as AppState];
+  // 라이브 모드(period.kind === "live") — 지금 상태 그대로. 위 두 게이트가 null/FAULT를
+  // 이미 걸러냈으니 여기선 항상 ClassifiedState(NORMAL/WATCH/ALARM)다.
+  const content = STATE_CONTENT[state as ClassifiedState];
   const tone = t[TONE_KEY[content.verdictLevel]];
   const acc = t[ACC_KEY[content.verdictLevel]];
 
@@ -190,6 +208,7 @@ export default function ChannelDetailScreen() {
         <CompareRow avg={content.avg} mine={content.mine} mineColor={acc} />
         <RichText text={content.cmp} style={{ color: t.labelNeutral, fontSize: 12, marginTop: 10, lineHeight: 20 }} />
 
+        {/* 원본 수치 접이식 — 실서버가 raw 값을 안 줘서 잠시 꺼둠. 위 import 주석 참고.
         <RawValuesDisclosure
           rows={[
             { label: "센서 원본값", hint: "가스가 많을수록 낮아지는 값입니다", value: content.raw },
@@ -200,7 +219,7 @@ export default function ChannelDetailScreen() {
             { label: "습도 확인", hint: "비·세차 때문인지 걸러냅니다", value: content.rh },
             { label: "평소 값 갱신", hint: "경보 중에는 갱신을 멈춥니다", value: content.freeze },
           ]}
-        />
+        /> */}
 
         <Pressable style={[styles.cta, { backgroundColor: content.danger ? t.negative : t.primary }]}>
           <Text style={styles.ctaText}>{content.cta}</Text>

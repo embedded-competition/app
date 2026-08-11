@@ -2,7 +2,13 @@
 // 실서버 페이로드가 나오기 전까지 실시간·항목상세·경보 화면은 전부 이 파일의 목데이터로 그린다.
 // <b> → **, <br> → \n 로만 표기를 바꿨을 뿐 문구는 원본 그대로.
 
-export type AppState = "normal" | "watch" | "alarm";
+// 실 백엔드(Orca Backend, /openapi.json)의 AlertState와 대소문자까지 맞춘다 — 서버는
+// "NORMAL"/"WATCH"/"ALARM"/"WARMUP"/"FAULT" 대문자 enum을 쓴다.
+// WARMUP은 아직 안 넣었다 — WATCH와 의미가 겹칠 가능성이 있어 보류 중(백엔드에 정의 확인 요청함,
+// backend-requests.md 참고). FAULT는 넣었지만 게이지·리본이 있는 "분류된" 상태들과 성격이 달라서
+// (가스 심각도가 아니라 "기기 자체가 고장남") ClassifiedState에서 뺐다 — FaultState 화면으로 따로 처리.
+export type AppState = "NORMAL" | "WATCH" | "ALARM" | "FAULT";
+export type ClassifiedState = Exclude<AppState, "FAULT">;
 export type Level = "ok" | "warn" | "bad";
 
 export interface ChannelStateContent {
@@ -19,7 +25,7 @@ export interface ChannelDef {
   alias: string;
   tag: string;
   primary: boolean;
-  states: Record<AppState, ChannelStateContent>;
+  states: Record<ClassifiedState, ChannelStateContent>;
 }
 
 export const CHANNELS: ChannelDef[] = [
@@ -30,9 +36,9 @@ export const CHANNELS: ChannelDef[] = [
     tag: "가장 먼저 오르는 신호",
     primary: true,
     states: {
-      normal: { val: "평소와 같음", speed: "거의 변화 없음", lv: "ok", tech: "+0.4 z · +0.2 z/min", series: [40, 42, 39, 41, 40, 42, 41, 39, 41, 40, 42, 41] },
-      watch: { val: "조금 늘어남", speed: "빠르게 오르는 중", lv: "warn", tech: "+3.1 z · +2.4 z/min", series: [40, 41, 40, 42, 44, 48, 54, 61, 69, 78, 86, 94] },
-      alarm: { val: "많이 새는 중", speed: "매우 빠르게 오름", lv: "bad", tech: "+9.4 z · +7.2 z/min", series: [41, 40, 43, 48, 58, 72, 90, 110, 132, 155, 178, 196] },
+      NORMAL: { val: "평소와 같음", speed: "거의 변화 없음", lv: "ok", tech: "+0.4 z · +0.2 z/min", series: [40, 42, 39, 41, 40, 42, 41, 39, 41, 40, 42, 41] },
+      WATCH: { val: "조금 늘어남", speed: "빠르게 오르는 중", lv: "warn", tech: "+3.1 z · +2.4 z/min", series: [40, 41, 40, 42, 44, 48, 54, 61, 69, 78, 86, 94] },
+      ALARM: { val: "많이 새는 중", speed: "매우 빠르게 오름", lv: "bad", tech: "+9.4 z · +7.2 z/min", series: [41, 40, 43, 48, 58, 72, 90, 110, 132, 155, 178, 196] },
     },
   },
   {
@@ -42,9 +48,9 @@ export const CHANNELS: ChannelDef[] = [
     tag: "과충전 때 먼저 나옴",
     primary: false,
     states: {
-      normal: { val: "평소와 같음", speed: "거의 변화 없음", lv: "ok", tech: "2,234 mV · +0.1 z/min", series: [40, 41, 40, 39, 41, 40, 41, 40, 39, 41, 40, 40] },
-      watch: { val: "평소와 같음", speed: "거의 변화 없음", lv: "ok", tech: "2,251 mV · +0.4 z/min", series: [40, 40, 41, 42, 41, 43, 44, 43, 45, 44, 46, 45] },
-      alarm: { val: "조금 늘어남", speed: "오르는 중", lv: "warn", tech: "2,486 mV · +2.9 z/min", series: [41, 40, 42, 44, 48, 54, 62, 70, 80, 92, 104, 116] },
+      NORMAL: { val: "평소와 같음", speed: "거의 변화 없음", lv: "ok", tech: "2,234 mV · +0.1 z/min", series: [40, 41, 40, 39, 41, 40, 41, 40, 39, 41, 40, 40] },
+      WATCH: { val: "평소와 같음", speed: "거의 변화 없음", lv: "ok", tech: "2,251 mV · +0.4 z/min", series: [40, 40, 41, 42, 41, 43, 44, 43, 45, 44, 46, 45] },
+      ALARM: { val: "조금 늘어남", speed: "오르는 중", lv: "warn", tech: "2,486 mV · +2.9 z/min", series: [41, 40, 42, 44, 48, 54, 62, 70, 80, 92, 104, 116] },
     },
   },
   {
@@ -54,9 +60,9 @@ export const CHANNELS: ChannelDef[] = [
     tag: "불이 붙기 시작하면 나옴",
     primary: false,
     states: {
-      normal: { val: "없음", speed: "거의 변화 없음", lv: "ok", tech: "412 mV · 0.0 z/min", series: [40, 40, 41, 40, 40, 41, 40, 40, 41, 40, 40, 40] },
-      watch: { val: "없음", speed: "거의 변화 없음", lv: "ok", tech: "415 mV · +0.2 z/min", series: [40, 41, 40, 41, 41, 42, 41, 42, 42, 43, 42, 43] },
-      alarm: { val: "나오는 중", speed: "오르는 중", lv: "warn", tech: "638 mV · +2.8 z/min", series: [40, 41, 41, 42, 45, 50, 58, 68, 80, 94, 108, 124] },
+      NORMAL: { val: "없음", speed: "거의 변화 없음", lv: "ok", tech: "412 mV · 0.0 z/min", series: [40, 40, 41, 40, 40, 41, 40, 40, 41, 40, 40, 40] },
+      WATCH: { val: "없음", speed: "거의 변화 없음", lv: "ok", tech: "415 mV · +0.2 z/min", series: [40, 41, 40, 41, 41, 42, 41, 42, 42, 43, 42, 43] },
+      ALARM: { val: "나오는 중", speed: "오르는 중", lv: "warn", tech: "638 mV · +2.8 z/min", series: [40, 41, 41, 42, 45, 50, 58, 68, 80, 94, 108, 124] },
     },
   },
   {
@@ -66,9 +72,9 @@ export const CHANNELS: ChannelDef[] = [
     tag: "",
     primary: false,
     states: {
-      normal: { val: "24.6°", speed: "변화 없음", lv: "ok", tech: "24.6 °C · +0.1 °C/min", series: [40, 41, 40, 41, 40, 41, 40, 41, 40, 41, 40, 41] },
-      watch: { val: "26.2°", speed: "조금 오름", lv: "ok", tech: "26.2 °C · +0.3 °C/min", series: [40, 41, 41, 42, 43, 43, 44, 45, 45, 46, 47, 48] },
-      alarm: { val: "41.8°", speed: "빠르게 오름", lv: "warn", tech: "41.8 °C · +2.1 °C/min", series: [41, 42, 44, 48, 54, 62, 72, 84, 96, 110, 124, 138] },
+      NORMAL: { val: "24.6°", speed: "변화 없음", lv: "ok", tech: "24.6 °C · +0.1 °C/min", series: [40, 41, 40, 41, 40, 41, 40, 41, 40, 41, 40, 41] },
+      WATCH: { val: "26.2°", speed: "조금 오름", lv: "ok", tech: "26.2 °C · +0.3 °C/min", series: [40, 41, 41, 42, 43, 43, 44, 45, 45, 46, 47, 48] },
+      ALARM: { val: "41.8°", speed: "빠르게 오름", lv: "warn", tech: "41.8 °C · +2.1 °C/min", series: [41, 42, 44, 48, 54, 62, 72, 84, 96, 110, 124, 138] },
     },
   },
   {
@@ -78,9 +84,9 @@ export const CHANNELS: ChannelDef[] = [
     tag: "",
     primary: false,
     states: {
-      normal: { val: "변화 없음", speed: "변화 없음", lv: "ok", tech: "0 Pa · 0.0 Pa/s", series: [40, 40, 41, 40, 40, 41, 40, 40, 41, 40, 40, 40] },
-      watch: { val: "변화 없음", speed: "변화 없음", lv: "ok", tech: "2 Pa · 0.1 Pa/s", series: [40, 40, 41, 41, 40, 41, 41, 42, 41, 42, 41, 42] },
-      alarm: { val: "약간 증가", speed: "조금 오름", lv: "warn", tech: "46 Pa · 3.2 Pa/s", series: [40, 41, 41, 43, 46, 50, 55, 60, 66, 72, 78, 84] },
+      NORMAL: { val: "변화 없음", speed: "변화 없음", lv: "ok", tech: "0 Pa · 0.0 Pa/s", series: [40, 40, 41, 40, 40, 41, 40, 40, 41, 40, 40, 40] },
+      WATCH: { val: "변화 없음", speed: "변화 없음", lv: "ok", tech: "2 Pa · 0.1 Pa/s", series: [40, 40, 41, 41, 40, 41, 41, 42, 41, 42, 41, 42] },
+      ALARM: { val: "약간 증가", speed: "조금 오름", lv: "warn", tech: "46 Pa · 3.2 Pa/s", series: [40, 41, 41, 43, 46, 50, 55, 60, 66, 72, 78, 84] },
     },
   },
   {
@@ -90,9 +96,9 @@ export const CHANNELS: ChannelDef[] = [
     tag: "",
     primary: false,
     states: {
-      normal: { val: "없음", speed: "—", lv: "ok", tech: "프로브 0", series: [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40] },
-      watch: { val: "없음", speed: "—", lv: "ok", tech: "프로브 0", series: [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40] },
-      alarm: { val: "감지됨", speed: "—", lv: "bad", tech: "프로브 0 → 1", series: [40, 40, 40, 40, 40, 40, 40, 40, 40, 180, 180, 180] },
+      NORMAL: { val: "없음", speed: "—", lv: "ok", tech: "프로브 0", series: [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40] },
+      WATCH: { val: "없음", speed: "—", lv: "ok", tech: "프로브 0", series: [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40] },
+      ALARM: { val: "감지됨", speed: "—", lv: "bad", tech: "프로브 0 → 1", series: [40, 40, 40, 40, 40, 40, 40, 40, 40, 180, 180, 180] },
     },
   },
 ];
@@ -161,8 +167,8 @@ export interface RibbonContent {
   stage: number;
 }
 
-export const STATE_CONTENT: Record<AppState, StateContent> = {
-  normal: {
+export const STATE_CONTENT: Record<ClassifiedState, StateContent> = {
+  NORMAL: {
     msg: "지금은 이상 없어요",
     sub: "평소와 같은 상태예요 · 14일 6시간째 지켜보는 중",
     btn: "점검 요청",
@@ -194,7 +200,7 @@ export const STATE_CONTENT: Record<AppState, StateContent> = {
     cmp: "같은 모델을 쓰는 다른 킥보드들과 비슷한 범위 안에 있습니다.",
     cta: "점검 이력 전체 보기",
   },
-  watch: {
+  WATCH: {
     msg: "정비가 필요할 것 같아요",
     sub: "가스가 늘고 있어요 · 18초째 · 1초마다 확인 중",
     btn: "점검 요청",
@@ -226,7 +232,7 @@ export const STATE_CONTENT: Record<AppState, StateContent> = {
     cmp: "같은 모델 킥보드들이 평소 움직이는 속도보다 **8배** 빠릅니다.",
     cta: "충전 중지하고 점검 요청",
   },
-  alarm: {
+  ALARM: {
     msg: "화재 발생 직전이에요",
     sub: "충전 전원을 자동으로 껐어요 · 확인 전까지 경보 유지",
     btn: "신고하기",
