@@ -2,10 +2,11 @@
 // 실서버 페이로드가 나오기 전까지 실시간·항목상세·경보 화면은 전부 이 파일의 목데이터로 그린다.
 // <b> → **, <br> → \n 로만 표기를 바꿨을 뿐 문구는 원본 그대로.
 
-// 실 백엔드(Orca Backend, /openapi.json)의 AlertState와 대소문자까지 맞춘다 — 서버는
-// "NORMAL"/"WATCH"/"ALARM"/"WARMUP"/"FAULT" 대문자 enum을 쓴다.
-// WARMUP은 아직 안 넣었다 — WATCH와 의미가 겹칠 가능성이 있어 보류 중(백엔드에 정의 확인 요청함,
-// backend-requests.md 참고). FAULT는 넣었지만 게이지·리본이 있는 "분류된" 상태들과 성격이 달라서
+// AppState는 화면이 쓰는 "표시용" 상태다 — 2026-08-12 개편으로 실제 서버는 더 이상 이런 단일
+// 문자열을 안 주고 status/stage/conditions/latched/water 5개 필드로 나눠서 준다
+// (scooter-app/docs/interface.md §2 참고). services/deriveAppState.ts가 그 5개 필드를 이
+// AppState 4키로 변환하는 매핑을 맡는다 — 그 매핑 규칙은 아직 백엔드 확인 전 추정치다
+// (backend-requests.md §2.2). FAULT는 게이지·리본이 있는 "분류된" 상태들과 성격이 달라서
 // (가스 심각도가 아니라 "기기 자체가 고장남") ClassifiedState에서 뺐다 — FaultState 화면으로 따로 처리.
 export type AppState = "NORMAL" | "WATCH" | "ALARM" | "FAULT";
 export type ClassifiedState = Exclude<AppState, "FAULT">;

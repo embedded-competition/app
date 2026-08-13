@@ -1,9 +1,10 @@
 // 상태(정상/주의/경보) 판정은 앱이 하지 않는다 — 노드/서버가 계산해서 내려주는 값만 받는다
 // (A1: 절대 임계값 금지, C5: 상태→문구 매핑은 서버 책임). 이 파일이 그 "받는" 경계다.
 //
-// 지금은 실제로 데이터를 보내주는 서버가 없다(C4 블로커 — planning/decisions/collaboration.md#c4).
-// 서버가 정해지면 이 파일 안에서 폴링/WebSocket 등으로 실제 TelemetrySource를 구현해서
-// hooks/useAppState.ts에 넘기면 된다 — 화면 코드는 건드릴 필요가 없어야 한다.
+// 서버(Orca Backend) 자체는 이제 실제로 있지만, 아직 이 파일에 HTTP 폴링 구현체를 안 붙였다.
+// 붙일 때는 GET /v1/devices/{mac}/telemetry/current를 폴링해서 DeviceCurrentResponse
+// (types/telemetry.ts)를 받고, services/deriveAppState.ts의 deriveAppState()로 이 AppState로
+// 변환해서 onState에 넘기면 된다 — 화면 코드는 건드릴 필요가 없어야 한다.
 import type { AppState } from "@/mocks/channels";
 
 export interface TelemetrySource {
