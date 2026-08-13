@@ -2,23 +2,16 @@
 // 서버에 등록한다 — api-spec.md "API 사용 순서" 2번. ALARM 판정 시 서버가 이 토큰으로
 // Expo Push API를 직접 호출하는 것(같은 문서 "③ 서버 발신")까지가 이 기능의 목적이다.
 //
-// 웹·시뮬레이터는 실제 푸시 토큰을 못 받는 경우가 많아서 조용히 건너뛴다 — 이 훅이 실패해도
-// 앱의 다른 기능에 영향을 주면 안 된다(치명적이지 않은 부가 기능).
+// expo-notifications는 네이티브 모듈(ExpoPushTokenManager)이 필요하다 — 이 모듈을 추가하기
+// 전에 만들어진 dev-client 빌드나 순정 Expo Go에는 없어서, 최상단에서 그냥 import하면 import문
+// 자체에서 "Cannot find native module"이 던져지고 이 파일을 import하는 index.tsx 전체가
+// 죽는다(모듈 평가가 파일 로드 시점에 통째로 실패). 그래서 반드시 useEffect 안에서 동적
+// import로 늦게 불러오고 try/catch로 감싼다 — 그래야 네이티브 모듈이 없는 빌드에서도 이 훅만
+// 조용히 아무것도 안 하고, 나머지 앱은 정상 동작한다(치명적이지 않은 부가 기능).
 import { useEffect } from "react";
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
-import Constants from "expo-constants";
 import { useDevice } from "@/contexts/DeviceContext";
 import { noPushTokenService } from "@/services/pushToken";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
 
 export function usePushNotifications() {
   const { pairedMac } = useDevice();
@@ -29,21 +22,39 @@ export function usePushNotifications() {
     let cancelled = false;
 
     (async () => {
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "default",
-          importance: Notifications.AndroidImportance.MAX,
-        });
+      let Notifications: typeof import("expo-notifications");
+      try {
+        Notifications = await import("expo-notifications");
+      } catch {
+        // 네이티브 모듈이 안 붙은 빌드(dev-client 재빌드 전) — 조용히 무시.
+        return;
       }
-
-      const { status: existing } = await Notifications.getPermissionsAsync();
-      let status = existing;
-      if (status !== "granted") {
-        status = (await Notifications.requestPermissionsAsync()).status;
-      }
-      if (status !== "granted" || cancelled) return;
 
       try {
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+          }),
+        });
+
+        if (Platform.OS === "android") {
+          await Notifications.setNotificationChannelAsync("default", {
+            name: "default",
+            importance: Notifications.AndroidImportance.MAX,
+          });
+        }
+
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        let status = existing;
+        if (status !== "granted") {
+          status = (await Notifications.requestPermissionsAsync()).status;
+        }
+        if (status !== "granted" || cancelled) return;
+
+        const Constants = (await import("expo-constants")).default;
         const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
         const { data: token } = await Notifications.getExpoPushTokenAsync(
           projectId ? { projectId } : undefined,
@@ -52,7 +63,7 @@ export function usePushNotifications() {
           await noPushTokenService.register(pairedMac, token);
         }
       } catch {
-        // 시뮬레이터 등 푸시 토큰을 발급 못 받는 환경 — 조용히 무시.
+        // 권한 거부·시뮬레이터·구버전 dev-client 등 — 조용히 무시.
       }
     })();
 
