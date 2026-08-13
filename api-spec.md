@@ -1,5 +1,7 @@
 # 서버 API — 간단 정리
 
+> **⚠️ 이 문서는 구버전이다 (2026-08-12 기준).** 아래 내용은 백엔드가 `/devices/{deviceId}/...` 경로 + 단일 문자열 `AlertState`(`WARMUP`/`NORMAL`/`WATCH`/`ALARM`/`FAULT`)를 쓰던 시절 스펙이다. 그 후 백엔드가 한 번 더 통째로 바뀌어서(`/v1/devices/{mac}/...` 경로, 인증 없음, 상태가 `status`/`stage`/`conditions`/`latched`/`water` 5개 필드로 분리) 지금은 상당 부분 안 맞는다. **최신 내용은 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md) §2·§3·§6을 볼 것** — 이 문서를 그 기준으로 전면 재작성하는 건 코드 반영과 함께 나중에 하기로 했다(지금은 문서만 최신화한 상태).
+
 **상태: 실제 배포된 백엔드(Orca Backend, https://api.agenthub.work/docs) 기준으로 갱신함.** 예전엔 이 문서가 앱 쪽 "제안"이었는데, 이제 실제로 돌아가는 서버가 있어서 그 OpenAPI 스펙(`/openapi.json`)에 맞춰 다시 정리했다. 앱이 기대하는 값: [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md). 여기 없는데 앱에 필요한 건 [`backend-requests.md`](backend-requests.md)에 따로 정리했다 — 그건 "요청 중"이지 지금 되는 게 아니다. 문서 작성 원칙은 [`CLAUDE.md`](CLAUDE.md#api-specmd-작성-원칙) 참고.
 
 ## 인증
