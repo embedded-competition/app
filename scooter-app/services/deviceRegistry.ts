@@ -1,14 +1,14 @@
-// 기기 등록(페어링)의 서버 경계. 사용자가 점검장비(MCU) 라벨의 MAC 주소를 입력하면
-// 이 인터페이스를 통해 서버로 보내서 킥보드를 계정에 연동한다.
+// 기기 등록(페어링)의 서버 경계. 사용자가 점검장비(MCU) 라벨의 MAC 주소를 입력하면 이
+// 인터페이스를 통해 "이 폰이 어떤 킥보드를 볼지"를 정한다.
 //
-// 인증 모델 확정: 로그인 없음 — 등록 성공 시 서버가 내려주는 deviceToken이 "이 폰이 이
-// 킥보드에 접근 자격이 있다"는 증명이다. 이후 모든 요청은 이 토큰만 Authorization 헤더에
-// 실어 보내면 된다(사람 계정 로그인이 아니라 폰-킥보드 페어링 단위 인증). 자세한 요청/응답
-// 예시는 레포 최상위 api-spec.md 참고.
-//
-// 서버가 아직 없어서(C4) 지금은 로컬에만 저장하고 무조건 성공 처리하는 스텁만 있다 —
-// deviceToken도 아직 안 내려준다(어차피 지금은 이 토큰을 쓰는 API 호출 자체가 없음).
-// 서버가 정해지면 이 파일 안에서 실제 HTTP 구현체로 교체하면 된다.
+// **2026-08-12 확인: 실제 서버엔 등록 엔드포인트도, 인증도 없다.** 예전엔 여기서 "등록 성공 시
+// deviceToken을 발급받아 Authorization 헤더에 싣는다"는 전제로 설계했는데, 실제 스펙
+// (`https://api.agenthub.work/openapi.json`)엔 `POST /devices` 같은 등록 엔드포인트가 아예
+// 없고 모든 요청이 `securitySchemes: {}`(인증 없음) 상태로 URL 경로에 맥주소만 넣어서 바로
+// 조회된다 — 자세한 내용은 scooter-app/docs/interface.md §6 참고. 즉 **아래
+// `localOnlyDeviceRegistry`(로컬 저장 + 무조건 성공)가 "서버 없어서 쓰는 임시 스텁"이 아니라
+// 최종 아키텍처에 가까울 가능성이 높다** — 다른 사람이 맥주소만 알면 조회가 되는 게 의도인지,
+// managementPhone을 어디서 받아야 하는지는 아직 서버팀 확인 중(backend-requests.md §1.4·§2.1).
 const MAC_PATTERN = /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/;
 
 /** "aa-bb-cc-dd-ee-ff" 같은 입력도 받아서 "AA:BB:CC:DD:EE:FF" 형태로 정규화한다. 형식이 틀리면 null. */
@@ -32,9 +32,7 @@ export interface DeviceRegistryResult {
   ok: boolean;
   error?: string;
   deviceId?: string;
-  /** 이후 모든 요청의 Authorization: Bearer <deviceToken>에 쓸 값. 실 서버 연동 전까지는 안 채워짐. */
-  deviceToken?: string;
-  /** 이 킥보드가 등록된 위치(주차장·건물)의 관리실 전화번호 — 서버가 맥주소 연결 시 같이 내려준다. */
+  /** 이 킥보드가 등록된 위치(주차장·건물)의 관리실 전화번호 — 실제로 어느 API에서 받을지는 아직 미정(backend-requests.md §1.4). */
   managementPhone?: string;
 }
 
@@ -42,9 +40,9 @@ export interface DeviceRegistry {
   register(mac: string): Promise<DeviceRegistryResult>;
 }
 
-// 서버가 없어서 항상 성공 처리하는 로컬 전용 스텁 — managementPhone은 데모용 고정값을 돌려준다.
-// 실 서버가 생기면 fetch(`/devices`, ...) 구현체로 바꿔서 export를 교체한다 —
-// DeviceProvider의 registry prop만 갈아끼우면 된다.
+// 로컬 전용 구현 — managementPhone은 데모용 고정값을 돌려준다. 위 파일 상단 주석 참고: 서버에
+// 등록 엔드포인트가 없다는 게 확인돼서, 이게 "서버 없어서 쓰는 임시 스텁"이 아니라 최종 형태에
+// 가까울 수 있다. managementPhone을 실제로 어디서 받을지 정해지면 그 부분만 고치면 된다.
 export const localOnlyDeviceRegistry: DeviceRegistry = {
   async register(_mac) {
     return { ok: true, managementPhone: "01029015899" };

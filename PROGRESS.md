@@ -4,13 +4,13 @@
 
 ## 한 줄 요약
 
-**서버가 아직 없다.** 앱 화면·플로우는 전부 만들어져 있고 목데이터로 돌아간다. API 명세(요청/응답 JSON)까지 다 나와 있어서, 서버가 그 계약대로 엔드포인트만 만들면 바로 연결된다.
+**서버(Orca Backend)는 실제로 있지만 앱은 아직 안 붙었다.** 앱 화면·플로우는 전부 만들어져 있고 목데이터로 돌아간다. 백엔드가 2026-08-12에 한 번 더 크게 개편돼서(엔드포인트·상태 모델·인증 전부 변경) `api-spec.md`는 구버전 — 최신 대조는 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md) §2·§3·§6, 백엔드팀에 확인 요청한 것은 [`backend-requests.md`](backend-requests.md)(gitignore, 내부용).
 
 ## 화면별 상태
 
 | 화면 | 상태 | 비고 |
 |---|---|---|
-| 기기 등록(페어링) | ✅ 완료 | 맥주소 입력 → 로컬 저장. 등록 응답에 `deviceToken`·`managementPhone`(관리실 전화번호) 받는 구조까지 완료, 실 서버 값만 채우면 됨 |
+| 기기 등록(페어링) | ✅ 완료 | 맥주소 입력 → 로컬 저장. **2026-08-12 확인: 실제 서버엔 등록 엔드포인트·인증(deviceToken)이 아예 없다** — 지금의 로컬 저장 방식이 임시 스텁이 아니라 최종 형태에 가까울 수 있음(interface.md §6). `managementPhone` 소스는 아직 서버팀 확인 중 |
 | 실시간(지도·상태·채널) | ✅ 완료(목데이터) | 지도는 아직 폰 GPS로 대체 중 — 서버가 GPS 좌표 주기 시작하면 전환 필요 |
 | 항목 상세 | ✅ 완료(목데이터) | |
 | 경보 화면 | ✅ 완료 | 119/관리실 전화 연결됨(관리실 번호는 기기 등록 시 서버가 내려준 값, 하드코딩 아님), 해제 요청 버튼 있음(서버 없어서 항상 실패 응답) |
@@ -31,7 +31,7 @@
 | 탭 구성 (O5) | 4탭 확정(실시간·기록·통계·설정), 통계 탭 내용도 확정 |
 | 압력 센서 종류 (O9) | 임베디드 하드웨어 결정 — 앱/API와 무관 |
 | 경보 해제 (O8) | 앱은 요청만 보냄, 승인(권한 판단)은 서버 내부 규칙 |
-| 인증 | 로그인 없음. 맥주소 등록 시 `deviceToken` 발급, 만료 없음 |
+| 인증 | 로그인 없음 — 2026-08-12 확인: `deviceToken` 발급 절차 자체가 없어짐. 맥주소만으로 URL 경로에서 바로 조회(`securitySchemes` 비어있음). 접근 제어를 서버가 따로 하는지는 확인 요청 중(backend-requests.md §2.1) |
 | 서버 통신 방식 | HTTP 요청 폴링만 (WebSocket/SSE 안 씀) |
 
 ## 아직 안 정해진 것
@@ -42,9 +42,8 @@
 
 ## 서버 팀이 봐야 할 것
 
-1. [`api-spec.md`](api-spec.md) — 엔드포인트 8개, 전부 요청/응답 JSON 예시 포함. 이대로 구현하면 앱과 바로 맞음
-2. 인증: 로그인 없이 기기 토큰 방식 — `POST /devices`(맥주소 등록) 응답에 `deviceToken` 포함해서 내려주면 됨
-3. "날짜별 센서값 조회"는 시간당 1개 × 센서 4종(하루 96개)로 고정 — 압축 파라미터 불필요
+1. [`api-spec.md`](api-spec.md)는 **구버전**(2026-08-12 개편 전 스펙) — 지금은 실제 배포된 스펙(`https://api.agenthub.work/openapi.json`)이 기준. 앱 쪽 최신 대조는 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md) §2·§3
+2. 확인·요청 사항은 [`backend-requests.md`](backend-requests.md)(레포 최상위, gitignore돼서 직접 전달 필요) — 모듈 상태 API는 추가 예정이라고 들어서 대기 중, 나머지(fleet 비교·실시간 온습도·managementPhone·status/stage 매핑 등)는 회신 대기
 
 ## 임베디드 팀이 봐야 할 것
 
@@ -53,6 +52,9 @@
 
 ## 다음에 할 일 (앱 쪽)
 
-- [ ] `DeviceMap.tsx`를 폰 GPS 추종 → 서버가 준 좌표 기반으로 전환 (서버 연동 후)
-- [ ] 푸시 토큰 등록 화면/로직 구현 (`api-spec.md` "푸시 토큰 등록" 참고)
-- [ ] `services/telemetrySource.ts`·`services/deviceRegistry.ts`·`services/alarmRelease.ts`를 실제 HTTP 구현체로 교체 (서버 준비되는 대로)
+- [x] `types/telemetry.ts`를 2026-08-12 실제 스펙 기준으로 재작성, `services/deriveAppState.ts`(서버 status/stage/conditions → 화면 AppState 매핑) 추가 — 단 아직 어디서도 호출 안 함
+- [ ] `services/telemetrySource.ts`에 실제 HTTP 폴링 구현체 추가(`GET /v1/devices/{mac}/telemetry/current` 반복 호출 + `deriveAppState()` 연결)
+- [ ] `DeviceMap.tsx`를 폰 GPS 추종 → 서버가 준 좌표(`GET /v1/devices/{mac}/location`) 기반으로 전환 (서버 연동 후)
+- [ ] 푸시 토큰 등록 훅(`hooks/usePushNotifications.ts`)은 만들어뒀지만 `services/pushToken.ts`는 아직 실제 HTTP 호출 없음(`POST /v1/devices/{mac}/push-token`)
+- [ ] `services/alarmRelease.ts`를 실제 HTTP 구현체(`POST /v1/devices/{mac}/alarm/release`)로 교체
+- [ ] 모듈 상태(배터리·RSSI·SNR) API 추가되면 `SettingsPanel` 연동 — 지금은 대기 중
