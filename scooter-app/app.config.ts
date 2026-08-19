@@ -25,6 +25,11 @@ const config: ExpoConfig = {
   },
   android: {
     package: "com.embeddedcompetition.scooterapp",
+    // NAVER_MAP_CLIENT_ID(.env)와 달리 이 파일은 gitignore하지 않고 커밋한다 — 안에 든 API
+    // 키는 패키지명+서명 SHA1로 제한돼 있어 공개돼도 안전하고(구글 공식 입장), 애초에 APK
+    // 안에도 그대로 박혀서 배포된다. EAS Build는 git에 커밋된 파일만 업로드하므로, 커밋 안
+    // 하면 클라우드 빌드가 "google-services.json is missing"으로 실패한다.
+    googleServicesFile: "./google-services.json",
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
       foregroundImage: "./assets/images/android-icon-foreground.png",

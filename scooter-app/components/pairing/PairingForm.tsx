@@ -1,23 +1,14 @@
 // 맥주소 입력 폼. 앱 최초 진입 시 게이트로도 쓰고(app/_layout.tsx), 설정 탭에서 기기를
 // 바꿀 때도 같은 컴포넌트를 쓴다(app/pairing.tsx).
 //
-// "0000" 개발용 우회 코드는 __DEV__로 감싸져 있다 — 프로덕션 빌드(__DEV__=false)에서는
-// 이 분기 자체가 존재하지 않는 것처럼 동작해서(번들러가 죽은 코드로 접어버림) 배포판에
-// 우회 코드가 살아있을 걱정이 없다. 화면에 힌트 문구는 일부러 안 띄운다 — 코드를 안다는 걸
-// 전제로 하는 개발용 단축키지, UI에 노출해서 알려주는 기능이 아니다.
 // DeviceRegistry 인터페이스는 dev/prod 둘 다 동일하게 쓰고, 실제 서버가 생기면 registry
 // 구현체만 바뀐다 — 이 폼은 손댈 필요 없음.
-//
-// EXPO_PUBLIC_PREVIEW_BYPASS=1이면 __DEV__가 아니어도 0000이 통한다 — 팀 미리보기용
-// 웹 배포(npx expo export --platform web) 때만 그 값을 켜서 빌드하고, .env에는 절대
-// 넣지 않는다(넣으면 스토어 배포 빌드에도 새어들어갈 수 있음). 이 값이 없으면 프로덕션
-// 빌드는 원래대로 __DEV__만 본다 — 실제 앱 스토어 빌드에는 백도어가 남지 않는다.
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { colors } from "@/constants/tokens";
 import { useScheme } from "@/contexts/ThemeModeContext";
 import { useDevice } from "@/contexts/DeviceContext";
-import { DEV_BYPASS_CODE, DEV_BYPASS_MAC, normalizeMac } from "@/services/deviceRegistry";
+import { normalizeMac } from "@/services/deviceRegistry";
 
 export function PairingForm({ onPaired }: { onPaired?: () => void }) {
   const scheme = useScheme();
@@ -25,10 +16,7 @@ export function PairingForm({ onPaired }: { onPaired?: () => void }) {
   const { pair, pairing, error } = useDevice();
   const [input, setInput] = useState("");
 
-  const previewBypassEnabled = process.env.EXPO_PUBLIC_PREVIEW_BYPASS === "1";
-  const isDevBypass = (__DEV__ || previewBypassEnabled) && input.trim() === DEV_BYPASS_CODE;
-  const normalized = normalizeMac(input);
-  const mac = isDevBypass ? DEV_BYPASS_MAC : normalized;
+  const mac = normalizeMac(input);
   const canSubmit = mac !== null && !pairing;
 
   const submit = async () => {

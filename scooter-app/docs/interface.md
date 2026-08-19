@@ -18,7 +18,7 @@
 
 앱은 `services/telemetrySource.ts`의 `TelemetrySource` 인터페이스 하나만 알면 된다. 실제 통신 방식은 **HTTP 요청 폴링으로 확정**했다(WebSocket·SSE 같은 연결 유지형 프로토콜은 안 씀 — [`../../api-spec.md`](../../api-spec.md)의 "① 조회" 패턴 참고) — 그 구현체 안에서만 처리하면 화면 코드는 손댈 필요가 없다.
 
-**실제 백엔드는 있다(Orca Backend, `../../api-spec.md` 참고) — 다만 앱이 아직 거기 안 붙었다.** `services/telemetrySource.ts`는 여전히 `noTelemetrySource`(아무 것도 방출하지 않음)가 기본값이고, `DevStateToggle`이 화면 상단에서 로컬로만 상태를 채워 넣는다. `LiveBadge`가 `isLive=false`일 때 "목데이터"라고 정직하게 표시하는 것도 이 때문이다. 실제 HTTP 폴링 구현체를 붙이는 건 아직 안 한 일이다(§7).
+**실제 백엔드는 있다(Orca Backend, `../../api-spec.md` 참고) — 다만 앱이 아직 거기 안 붙었다.** `services/telemetrySource.ts`는 여전히 `noTelemetrySource`(아무 것도 방출하지 않음)가 기본값이다. 2026-08-19: 개발용 미리보기 오버라이드(`DevStateToggle`)를 삭제해서, 이제 HTTP 폴링 구현체를 붙이기 전까지는 화면이 계속 `NoDataState`("연결된 기기가 없어요")만 보여준다 — 상태별 화면을 확인하려면 실제 연동이 필요하다. 실제 HTTP 폴링 구현체를 붙이는 건 아직 안 한 일이다(§7).
 
 ## 2. 지금 구현된 최소 계약 (Phase 1) — 클라이언트 코드 기준, 실제 서버와는 이미 어긋남
 
@@ -61,7 +61,7 @@ interface TelemetrySource {
 | `pressure.{presDev,presRate}` | `pressure.{value,slope}` | 있음, `gas`/`h2`/`co`와 동일한 `ChannelResponse` 모양으로 통일됨(예전엔 `presRate`가 기간 조회에서 빠지는 비대칭이 있었는데 이번 개편으로 없어진 듯) | 부풀어 오름 카드 | S6/[O9](../../../planning/decisions/open-questions.md#o9) |
 | `water` | `water`(boolean, 최상위) | 있음 — nullable 아니고 기본 `false` | 물·누액 카드 | S5, 확증 보너스. 이제 채널 객체가 아니라 단순 불리언이라 카드 표시 로직 조정 필요 |
 | `signature.{rise,hold,noRecover,holdS}` | `conditions[]`(배열) | **모양이 완전히 다름** — 3개 불리언+지속시간 조합이 아니라 enum 배열 | 항목 상세 "판단 근거 3요소" | A4. `conditions`로 "판단 근거 3요소" UI를 어떻게 다시 표현할지 설계 필요(예: `CO_RISE`가 있으면 "갑자기 늘었나"에 해당한다고 볼 수 있는지 등 1:1 대응이 명확치 않음) |
-| `module.{nodeId,seq,battMv,rssi,snr,lastSeen}` | **엔드포인트 자체가 없어짐** | 사라짐 | 설정 패널 "감지 모듈 배터리·연결 상태·센서 점검" | 2026-08-12 개편 전엔 `telemetry/latest.module`로 왔는데 새 스펙 어디에도 없다 — 배터리·RSSI·SNR·마지막 수신 시각을 보여줄 실데이터가 없어짐. 화면에서 이 섹션을 어떻게 할지(숨김/자리만 유지) 결정 필요 |
+| `module.{nodeId,seq,battMv,rssi,snr,lastSeen}` | **일부만 부활**: `GET /v1/devices/{mac}` → `{sensorCheck: "OK"\|"FAULT"\|null}` | "센서 점검"만 연결됨(2026-08-19, `services/sensorCheck.ts`+`hooks/useSensorCheck.ts`) | 설정 패널 "감지 모듈 배터리·연결 상태·센서 점검" | 배터리·RSSI·SNR·마지막 수신 시각은 여전히 없음 — `mocks/channels.ts`의 `MODULE_STATUS` 목데이터 그대로(backend-requests.md §1.1에 나머지 요청해둠) |
 | (fleet 비교, `CompareRow.tsx`) | **엔드포인트 자체가 없어짐** | 사라짐 | 항목 상세 "같은 모델과 비교" | 예전 스펙엔 `GET /devices/{deviceId}/fleet-comparison`이 있었는데 새 스펙 8개 엔드포인트 중엔 없다 |
 | `location` | `GET /v1/devices/{mac}/location` (별도 엔드포인트) | 있음, 단 **`telemetry/current` 응답에서 빠지고 전용 엔드포인트로 분리됨** — `{lat, lon, at}` | 실시간 화면 지도 | O1 확정대로 GPS. 지금은 폰 GPS로 대체 중(`DeviceMap.tsx`) — 연동 시 이 엔드포인트를 별도로 폴링해야 함(telemetry 폴링에 얹혀오지 않음) |
 
@@ -99,7 +99,7 @@ interface TelemetrySource {
 | [O1](../../../planning/decisions/open-questions.md#o1) | 위치 소스 = **GPS로 확정**(임베디드 모듈이 직접 측정) | `DeviceTelemetry.location`에 실좌표가 채워져서 온다. 앱은 그대로 표시만 하면 됨 — 지금 `DeviceMap.tsx`의 폰 GPS 추종은 이 결정 전 임시방편이라 controlled `camera`(서버 좌표 기반)로 코드 전환 필요 |
 | [O2](../../../planning/decisions/open-questions.md#o2) | 노드가 판단 근거를 전송할지 = **서버가 계산해서 제공**(노드가 아니라 서버가 raw로부터 계산) | `signature` 필드로 온다 — 단 **nullable이라 항상 채워지는 건 아님**([§3](#3-목표-데이터-모델-phase-2--아직-미구현) 참고), 화면은 null 가능성을 방어적으로 처리해야 함 |
 | [O4](../../../planning/decisions/open-questions.md#o4) | 기기 관리 = **단일 기기로 확정**(1계정=1기기) | `DeviceContext`의 맥주소 1개 전제가 그대로 최종 모델. 다중 기기 대응 코드 안 짜도 됨 |
-| [O8](../../../planning/decisions/open-questions.md#o8) | 경보 해제 권한 = **앱은 요청만, 승인은 서버가 내부 규칙으로 판단** | `alarm.tsx`에 "경보 해제 요청" 버튼 완료 — `services/alarmRelease.ts`로 요청 전송, 서버 없어서 항상 실패 응답 |
+| [O8](../../../planning/decisions/open-questions.md#o8) | 경보 해제 권한 = **앱은 요청만, 승인은 서버가 내부 규칙으로 판단** | `alarm.tsx`에 "경보 해제 요청" 버튼 완료 — `services/alarmRelease.ts`가 2026-08-19부터 실제 `POST /v1/devices/{mac}/alarm/release` 호출 |
 
 ## 6. 기기 등록 (페어링)
 
@@ -128,7 +128,7 @@ interface DeviceRegistry {
 > 결론적으로 **지금 `localOnlyDeviceRegistry`가 "서버 없어서 임시로 로컬에만 저장하는 스텁"이라고 문서화해뒀던 게, 사실은 최종 아키텍처와 크게 다르지 않을 가능성이 있다** — "등록"은 서버 왕복이 필요한 절차가 아니라 그냥 **이 폰이 어떤 킥보드의 맥주소를 조회할지 로컬에서 고르는 것**일 수 있다. 다만 이러면 `managementPhone`을 어디서 받는지, 다른 사람이 맥주소만 알면 남의 킥보드 데이터를 볼 수 있는 게 의도인지는 서버팀 확인이 필요한 부분 — 아직 [`../../backend-requests.md`](../../backend-requests.md)에 안 올렸음(코드 반영을 나중으로 미루기로 해서, 질문도 그때 같이 정리하기로 함).
 
 - MAC 하나 = 킥보드 한 대, **[O4](../../../planning/decisions/open-questions.md#o4) 확정**: 다중 기기 지원 없이 이대로 최종 모델로 간다. (관리실 다중 관리 같은 시나리오가 나중에 필요해지면 계정↔기기 다대다 관계·로그인 시스템을 다시 설계해야 하지만, 지금은 범위 밖으로 명시적으로 뺐다.)
-- 개발 모드(`__DEV__`)에서는 `"0000"`을 입력하면 실제 MAC 검증 없이 고정 값(`00:00:00:00:00:00`)으로 즉시 등록되고 미리보기 화면으로 들어간다. 프로덕션 빌드에서는 이 분기가 번들에서 아예 빠진다 — 배포판에 우회 코드가 남을 걱정은 안 해도 된다.
+- 2026-08-19: 개발용 우회 코드(`"0000"`)를 삭제했다 — 실제 서비스 이용 흐름과 동일하게, 이제 항상 형식이 맞는 진짜 맥주소만 등록된다.
 
 ## 7. 변경 관리
 
@@ -137,8 +137,8 @@ interface DeviceRegistry {
 2. `contexts/AppStateContext.tsx`·`mocks/channels.ts`의 `AppState`(`NORMAL`/`WATCH`/`ALARM`/`FAULT` 4키 인덱싱 구조)를 새 5필드 모델에 맞게 재설계 — `status`(3)/`stage`(5)를 기존 게이지·스테퍼 UI에 매핑하는 규칙부터 정해야 함
 3. `services/telemetrySource.ts`에 HTTP 폴링 구현체(`GET /v1/devices/{mac}/telemetry/current` 반복 호출) 추가, `noTelemetrySource`는 개발/오프라인 폴백으로만 남김
 4. `services/deviceRegistry.ts` — **등록 엔드포인트가 없다는 걸 확인했으니(§6), HTTP 구현체를 새로 만드는 게 아니라 오히려 지금의 `localOnlyDeviceRegistry`(로컬 저장)가 최종 형태에 가까울 수 있다** — `managementPhone`을 어디서 받을지만 서버팀에 확인 후 결정
-5. `services/alarmRelease.ts`에 실제 HTTP 구현체(`POST /v1/devices/{mac}/alarm/release`, body `{note?}` → `{released}`) 추가
-6. `components/settings/SettingsPanel.tsx`의 모듈 상태 행, `components/detail/CompareRow.tsx` — 대응 엔드포인트가 없어졌으니 화면에서 어떻게 할지(숨김/자리만 유지/서버팀에 부활 요청) 결정
+5. ~~`services/alarmRelease.ts`에 실제 HTTP 구현체 추가~~ — 2026-08-19 완료. `services/telemetrySource.ts`(실시간 상태 폴링)·`services/events.ts`(기록)도 같이 실 API로 연결함
+6. `components/settings/SettingsPanel.tsx`의 모듈 상태 행 — "센서 점검"은 실 API 연결 완료(2026-08-19), 배터리·연결 상태는 아직 대응 엔드포인트 없어서 목데이터 유지. `components/detail/CompareRow.tsx`(fleet 비교)는 대응 엔드포인트가 여전히 없으니 화면에서 어떻게 할지(숨김/자리만 유지/서버팀에 부활 요청) 결정 필요
 7. 이 문서·`mocks/channels.ts`의 하드코딩 문구를 §3.1 결정(문구를 서버가 줄지 앱이 만들지 — `conditions` 배열 기반으로는 더더욱 앱이 만들어야 할 가능성이 커짐)에 따라 갱신
 8. `mocks/period.ts`를 `GET /sensors/{sensor}/detail`·`GET /telemetry/peaks`로 교체(§3 맨 아래) — "최근 7일"류 기간 조회가 이제 실제로 가능해 보임
 9. `api-spec.md`를 2026-08-12 스펙 기준으로 전면 재작성(엔드포인트 URL·요청 예시가 전부 구버전이라 지금은 이 문서 쪽을 우선해야 함)

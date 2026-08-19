@@ -283,14 +283,3 @@ export const MODULE_STATUS = {
 
 export const ADDRESS_MAIN = "서울 성동구 행당동 · 지하주차장 B-14";
 export const OWNER_NAME = "이현수님";
-
-// 기록 탭용 목데이터. events[]/suppressed[]/actions[]는 서버가 생성 (C5) — 실 연동 전까지 사용.
-export const mockEvents = [
-  { id: "1", timestamp: new Date().toISOString(), kind: "state_change" as const, description: "정상 → 주의 전환" },
-  {
-    id: "2",
-    timestamp: new Date().toISOString(),
-    kind: "suppressed" as const,
-    description: "습도 급변으로 가스 채널 승격 보류 (오경보 아님)",
-  },
-];

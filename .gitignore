@@ -4,5 +4,8 @@ STUDY.md
 # 백엔드 팀에 보낼 요청 초안 — 레포에는 안 올림
 backend-requests.md
 
+# Firebase 서비스 계정 키(FCM 푸시용) — 비밀키라 레포에는 안 올림
+*firebase-adminsdk*.json
+
 # macOS
 .DS_Store
