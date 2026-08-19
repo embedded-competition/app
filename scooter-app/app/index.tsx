@@ -7,7 +7,7 @@
 // 순서: 헤더(제목+LiveBadge+햄버거) → 지도 → 리본 → 기간 세그먼트 → 채널 그리드 → 기록.
 // state가 null(연결된 기기 없음)이면 절대 "정상"으로 보여주지 않는다 — 단, 이건 period가
 // "지금"일 때만 적용된다. 기간 조회(오늘/최근 7일/기간선택)는 라이브 연결 여부와 무관한
-// 목데이터 미리보기 개념이라 DevStateToggle/NoDataState와 같은 선상에서 늘 보여준다.
+// 목데이터라 상태가 null이어도 늘 보여준다.
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -18,7 +18,6 @@ import { colors } from "@/constants/tokens";
 import { useAppState } from "@/contexts/AppStateContext";
 import { usePeriod } from "@/contexts/PeriodContext";
 import { LiveBadge } from "@/components/badges/LiveBadge";
-import { DevStateToggle } from "@/components/dev/DevStateToggle";
 import { NoDataState } from "@/components/dev/NoDataState";
 import { FaultState } from "@/components/dev/FaultState";
 import { DeviceMap } from "@/components/map/DeviceMap";
@@ -27,22 +26,27 @@ import { ChannelCard } from "@/components/channel/ChannelCard";
 import { PeriodSegment } from "@/components/period/PeriodSegment";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { RecordAccordion, type RecordItem } from "@/components/record/RecordAccordion";
-import { ADDRESS_MAIN, CHANNELS, STATE_CONTENT, mockEvents, type ClassifiedState } from "@/mocks/channels";
+import { ADDRESS_MAIN, CHANNELS, STATE_CONTENT, type ClassifiedState } from "@/mocks/channels";
 import { getPeriodSummary } from "@/mocks/period";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useEvents } from "@/hooks/useEvents";
 
 function formatEventTime(iso: string) {
   const d = new Date(iso);
-  return `오늘 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  return isToday ? `오늘 ${hm}` : `${d.getMonth() + 1}월 ${d.getDate()}일 ${hm}`;
 }
 
 export default function MainScreen() {
   const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
-  const { state, isLive, setDevState } = useAppState();
+  const { state, isLive } = useAppState();
   const { period, setPeriod } = usePeriod();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { items: liveEvents, truncated: liveEventsTruncated, loading: eventsLoading } = useEvents();
 
   useEffect(() => {
     Location.requestForegroundPermissionsAsync().catch(() => {});
@@ -56,7 +60,7 @@ export default function MainScreen() {
     >
       <Text style={[styles.title, { color: t.labelStrong }]}>내 킥보드</Text>
       <View style={styles.headerRight}>
-        <LiveBadge status={isLive ? "live" : state === null ? "offline" : "preview"} />
+        <LiveBadge status={isLive ? "live" : "offline"} />
         <Pressable onPress={() => setSettingsOpen(true)} hitSlop={8}>
           <Text style={{ color: t.labelStrong, fontSize: 20 }}>☰</Text>
         </Pressable>
@@ -88,27 +92,18 @@ export default function MainScreen() {
       <View style={{ flex: 1, backgroundColor: t.bgAlt }}>
         {header}
         {settingsOverlay}
-        <NoDataState onPreview={setDevState} />
+        <NoDataState />
       </View>
     );
   }
 
   // FAULT(기기 고장)는 가스 심각도 개념이 아니라서 리본·게이지·채널 그리드 틀에 안 맞는다 —
-  // state===null과 마찬가지로 별도 화면으로 뺀다. DevStateToggle은 그대로 둬서 다른 상태로
-  // 바로 전환해볼 수 있게 한다.
+  // state===null과 마찬가지로 별도 화면으로 뺀다.
   if (period.kind === "live" && state === "FAULT") {
     return (
       <View style={{ flex: 1, backgroundColor: t.bgAlt }}>
         {header}
         {settingsOverlay}
-        {!isLive && (
-          <View style={styles.previewBar}>
-            <DevStateToggle state={state} onChange={setDevState} />
-            <Pressable onPress={() => setDevState(null)}>
-              <Text style={{ color: t.labelAlt, fontSize: 12 }}>미리보기 종료</Text>
-            </Pressable>
-          </View>
-        )}
         <FaultState />
       </View>
     );
@@ -127,10 +122,12 @@ export default function MainScreen() {
     : "탭하면 채널별로 자세히 볼 수 있어요";
 
   const recordSummary = isLivePeriod
-    ? "이번 달 경보 0건 · 오경보 차단 2건 · 완충 방치 4회"
+    ? eventsLoading
+      ? "불러오는 중…"
+      : `최근 30일 · 기록 ${liveEvents.length}건${liveEventsTruncated ? "+" : ""}`
     : `${periodSummary!.rangeLabel} · 기록 ${periodSummary!.events.length}건`;
   const recordItems: RecordItem[] = isLivePeriod
-    ? mockEvents.map((e) => ({ id: e.id, time: formatEventTime(e.timestamp), description: e.description }))
+    ? liveEvents.map((e) => ({ id: String(e.id), time: formatEventTime(e.timestamp), description: e.description }))
     : periodSummary!.events.map((e, i) => ({ id: String(i), time: e.time, description: e.description }));
 
   return (
@@ -146,15 +143,6 @@ export default function MainScreen() {
           </Text>
           <Pressable onPress={() => setPeriod({ kind: "live" })} hitSlop={6}>
             <Text style={{ color: t.primary, fontSize: 12, fontWeight: "700" }}>지금으로</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {isLivePeriod && !isLive && (
-        <View style={styles.previewBar}>
-          <DevStateToggle state={liveState} onChange={setDevState} />
-          <Pressable onPress={() => setDevState(null)}>
-            <Text style={{ color: t.labelAlt, fontSize: 12 }}>미리보기 종료</Text>
           </Pressable>
         </View>
       )}
@@ -226,14 +214,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-  },
-  previewBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    gap: 10,
   },
   scroll: { paddingBottom: 24 },
   padH: { paddingHorizontal: 18 },

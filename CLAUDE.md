@@ -59,8 +59,7 @@ scooter-app/
 
   components/                 화면 조립용 UI 블록. 화면(app/)에서 콘텐츠를 받아 그리기만 한다
     badges/LiveBadge.tsx        상단 연결 상태 배지 — live(LIVE 펄스)/preview(목데이터)/offline(연결 안 됨) 3단
-    dev/DevStateToggle.tsx      미리보기 중 정상/주의/경보 전환 — 서버 없는 지금만 쓰는 개발용, 실 연동 후 삭제
-    dev/NoDataState.tsx         state===null(연결된 기기 없음)일 때 보여주는 빈 화면 + 미리보기 진입 버튼
+    dev/NoDataState.tsx         state===null(연결된 기기 없음)일 때 보여주는 빈 화면
     pairing/PairingForm.tsx     맥주소 입력 폼. 최초 게이트와 설정 탭 재등록 화면이 같이 씀
     map/DeviceMap.tsx           네이버 지도(NaverMapView) + 위치 추적(Follow) + 주소 오버레이 — 네이티브 전용
     map/DeviceMap.web.tsx       웹 전용 폴백. SVG 개략도 지도 + 핀 halo 펄스 (Metro가 웹 빌드에서 자동으로 이 파일을 씀)
@@ -81,10 +80,10 @@ scooter-app/
   mocks/channels.ts           화면을 실제로 그리는 데이터 원천 — 6개 채널 × normal/watch/alarm 3상태 콘텐츠, 프로토타입 JS(CH·ST)를 그대로 이식
   mocks/history.ts             통계 탭용 날짜별 목데이터 — api-spec.md "날짜별 센서값 조회"를 흉내냄. 날짜 문자열을 시드로 결정적인 값 생성(매번 랜덤 아님)
   services/telemetrySource.ts  앱이 서버로부터 상태를 "받는" 경계. 지금은 아무 것도 보내지 않는 기본 구현만 있음
-  services/deviceRegistry.ts   기기 등록(맥주소 페어링)의 서버 경계. MAC 정규화(normalizeMac)와 개발용 우회 코드(DEV_BYPASS_CODE="0000", `__DEV__`로 감싸져 있어 프로덕션엔 안 남음)도 여기 있음. 지금은 로컬 저장만 하고 무조건 성공 처리하는 스텁
+  services/deviceRegistry.ts   기기 등록(맥주소 페어링)의 서버 경계. MAC 정규화(normalizeMac)가 여기 있음. 2026-08-19: 개발용 우회 코드("0000") 삭제 — 이제 실제 맥주소 입력만 통과한다. 지금은 로컬 저장만 하고 무조건 성공 처리하는 스텁
   services/alarmRelease.ts     경보 해제 요청의 서버 경계. 승인 판단은 서버 책임(O8) — 서버가 없어서 지금은 항상 실패로 응답하는 정직한 스텁(deviceRegistry와 달리 "성공한 척" 안 함)
   hooks/useAlarmRelease.ts     경보 해제 요청 버튼 로직(releasing/error/requestRelease) — `alarm.tsx`와 설정 탭이 같이 씀
-  contexts/AppStateContext.tsx  telemetrySource를 구독해서 앱 전체가 공유하는 상태 하나(`AppState | null`). null = 분류할 데이터 없음 — "정상"으로 기본값을 깔지 않는다. 실 데이터가 없을 때만 DevStateToggle 로컬 오버라이드를 씀 (isLive로 구분) — 예전엔 화면마다 useState로 따로 들고 있어서 화면 간 상태가 안 맞는 버그가 있었다
+  contexts/AppStateContext.tsx  telemetrySource를 구독해서 앱 전체가 공유하는 상태 하나(`AppState | null`). null = 분류할 데이터 없음 — "정상"으로 기본값을 깔지 않는다 — 예전엔 화면마다 useState로 따로 들고 있어서 화면 간 상태가 안 맞는 버그가 있었다. 2026-08-19: 개발용 미리보기 오버라이드(DevStateToggle) 삭제 — 이제 `state`는 항상 telemetrySource가 주는 값 그대로다
   contexts/DeviceContext.tsx   페어링된 기기(맥주소) + managementPhone(관리실 전화번호, 등록 시 서버가 같이 내려줌) 저장. pairedMac이 null이면 app/_layout.tsx가 탭 화면 대신 PairingForm을 띄운다 — 텔레메트리보다 앞선 게이트
   contexts/ThemeModeContext.tsx  테마 설정(시스템/라이트/다크). AsyncStorage에 저장, `useScheme()`이 실제 적용될 라이트/다크 값을 돌려준다
   docs/interface.md           앱 ↔ 서버 인터페이스 명세 (서버·임베디드 팀 전달용) — 필드별 상태·화면 사용처, 기기 등록 API 계약 정리
@@ -100,13 +99,13 @@ scooter-app/
 서버가 아직 없다(C4). 지금 데이터 원천은 세 갈래다.
 
 - **`services/telemetrySource.ts`** — 앱이 상태를 "받는" 유일한 경계(`TelemetrySource.subscribe`). 지금은 `noTelemetrySource`(아무 것도 방출 안 함)만 있다. `contexts/AppStateContext.tsx`가 이걸 구독해서 **앱 전체가 공유하는** 상태 하나(`AppState | null`)를 만든다.
-  - `state === null` — 데이터도 없고 미리보기도 안 고른 상태. 화면은 `NoDataState`("연결된 기기가 없어요" + 미리보기 버튼)를 보여줘야 한다. **절대 "정상"을 기본값으로 깔지 말 것** — 분류 안 된 걸 정상 판정처럼 보여주면 안 된다.
-  - `state !== null && !isLive` — 개발자가 `NoDataState`/`DevStateToggle`로 미리보기를 고른 상태. `LiveBadge status="preview"`("목데이터")로 정직하게 표시.
-  - `isLive === true` — 실 데이터. `LiveBadge status="live"`.
+  - `state === null` — 데이터가 없는 상태. 화면은 `NoDataState`("연결된 기기가 없어요")를 보여줘야 한다. **절대 "정상"을 기본값으로 깔지 말 것** — 분류 안 된 걸 정상 판정처럼 보여주면 안 된다.
+  - `isLive === true`(= `state !== null`) — 실 데이터. `LiveBadge status="live"`, 아니면 `"offline"`.
+  - 2026-08-19: 개발용 미리보기 오버라이드(`DevStateToggle`)를 삭제했다 — `state`는 이제 telemetrySource가 준 값 그대로다. HTTP 폴링 구현체를 붙이기 전까지는 화면이 계속 `NoDataState`만 보여준다는 뜻.
 
   **새 화면에서 상태를 쓸 땐 항상 `useAppState()`(from `@/contexts/AppStateContext`)를 쓰고, `state`가 `null`일 수 있다는 걸 화면 진입점에서 먼저 처리할 것** — 화면마다 따로 로컬 상태를 만들거나 `STATE_CONTENT[state]`를 null 체크 없이 바로 인덱싱하지 말 것.
 - **`mocks/channels.ts`** — 지금 화면을 실제로 그리는 콘텐츠. 프로토타입 HTML의 `CH`(6채널)·`ST`(상태별 리본/게이지/차트/판단근거 문구)를 그대로 옮겼다. 화면은 `STATE_CONTENT[state]`·`CHANNELS[i].states[state]`를 읽어서 그린다.
-- **`types/telemetry.ts`** — 실 서버 페이로드가 나왔을 때 쓸 참고용 스키마(§7 데이터 인벤토리 그대로 타입화). 아직 어떤 화면도 이 타입을 쓰지 않는다.
+- **`types/telemetry.ts`** — 2026-08-12 실제 백엔드(Orca Backend) 스펙 그대로 타입화(`DeviceCurrentResponse` 등, `scooter-app/docs/interface.md` §2·§3 참고). 아직 어떤 화면도 이 타입을 안 쓴다 — `services/deriveAppState.ts`가 이걸 `AppState`로 변환하는 매핑을 담당하는데, 그 매핑도 아직 어디서도 안 부른다(HTTP 폴링 미구현).
 
 실 서버 API가 정해지면 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md)의 계약대로: `telemetrySource.ts`에 HTTP 폴링 구현체(`api-spec.md`의 "① 조회" 패턴 — WebSocket·SSE 안 씀)를 추가하고, `mocks/channels.ts`의 문구·수치 생성 로직을 서버 응답 매핑으로 교체한다(문구 자체를 서버가 내려줄지는 interface.md §3.1 참고 — 아직 미정).
 

@@ -8,26 +8,39 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { AppStateProvider, useAppState } from "@/contexts/AppStateContext";
 import { DeviceProvider, useDevice } from "@/contexts/DeviceContext";
 import { ThemeModeProvider, useScheme } from "@/contexts/ThemeModeContext";
 import { PeriodProvider } from "@/contexts/PeriodContext";
 import { colors } from "@/constants/tokens";
 import { PairingForm } from "@/components/pairing/PairingForm";
+import { createHttpTelemetrySource, noTelemetrySource } from "@/services/telemetrySource";
 
 export default function RootLayout() {
   return (
     <ThemeModeProvider>
       <DeviceProvider>
-        <AppStateProvider>
+        <TelemetryBridge>
           <PeriodProvider>
             <Navigation />
           </PeriodProvider>
-        </AppStateProvider>
+        </TelemetryBridge>
       </DeviceProvider>
     </ThemeModeProvider>
   );
+}
+
+// AppStateProvider의 source(TelemetrySource)는 어떤 기기의 데이터를 폴링할지 pairedMac을
+// 알아야 만들 수 있다 — DeviceProvider 안쪽에서 useDevice()로 mac을 읽어 소스를 만들고
+// AppStateProvider에 넘겨준다. mac이 바뀔 때만(재등록 등) 새 소스를 만든다.
+function TelemetryBridge({ children }: { children: ReactNode }) {
+  const { pairedMac } = useDevice();
+  const source = useMemo(
+    () => (pairedMac ? createHttpTelemetrySource(pairedMac) : noTelemetrySource),
+    [pairedMac],
+  );
+  return <AppStateProvider source={source}>{children}</AppStateProvider>;
 }
 
 function Navigation() {
