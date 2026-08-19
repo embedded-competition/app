@@ -18,16 +18,6 @@ export function normalizeMac(input: string): string | null {
   return trimmed.toUpperCase().replace(/-/g, ":");
 }
 
-// 실기기 없이 화면 개발할 때 쓰는 우회 코드. PairingForm에 "0000"을 입력하면 실제 MAC
-// 형식 검증 없이 이 값으로 즉시 등록되고, 곧바로 미리보기(NoDataState → 정상/주의/경보) 화면으로
-// 들어간다 — 진짜 기기처럼 보이지 않도록 화면에 노출될 땐 항상 isDevBypassMac()으로 구분해서 표시할 것.
-export const DEV_BYPASS_CODE = "0000";
-export const DEV_BYPASS_MAC = "00:00:00:00:00:00";
-
-export function isDevBypassMac(mac: string | null): boolean {
-  return mac === DEV_BYPASS_MAC;
-}
-
 export interface DeviceRegistryResult {
   ok: boolean;
   error?: string;
