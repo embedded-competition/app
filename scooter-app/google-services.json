@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "650157744593",
+    "project_id": "embedded-e3923",
+    "storage_bucket": "embedded-e3923.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:650157744593:android:7129abd78cd487b96f80f0",
+        "android_client_info": {
+          "package_name": "com.embeddedcompetition.scooterapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuZL-PDj7vQUZ4AhvtWFHo_TnWTjmyvXY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
