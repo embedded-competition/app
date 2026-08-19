@@ -36,7 +36,7 @@ export default function ChannelDetailScreen() {
   const { channel: channelKey } = useLocalSearchParams<{ channel: string }>();
   const scheme = useScheme();
   const t = colors[scheme];
-  const { state, isLive, setDevState } = useAppState();
+  const { state, isLive } = useAppState();
   const { period } = usePeriod();
 
   const channel = CHANNELS.find((c) => c.key === channelKey) ?? CHANNELS[0];
@@ -48,7 +48,7 @@ export default function ChannelDetailScreen() {
     return (
       <>
         <Stack.Screen options={{ title: channel.name }} />
-        <NoDataState onPreview={setDevState} />
+        <NoDataState />
       </>
     );
   }
