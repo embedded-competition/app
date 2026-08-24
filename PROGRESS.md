@@ -62,3 +62,5 @@
 - [ ] `DeviceMap.tsx`를 폰 GPS 추종 → 서버 좌표(`GET /v1/devices/{mac}/location`) 기반으로 전환 — 아직 안 함(구조 변경 필요, 사용자 확인 대기)
 - [x] 센서 점검(`GET /v1/devices/{mac}`) 실 API 연동 완료 — 앱 최초의 실 HTTP 호출(`services/sensorCheck.ts`+`hooks/useSensorCheck.ts`)
 - [ ] 모듈 상태 중 배터리·RSSI·SNR은 여전히 API 없어서 `SettingsPanel`에 목데이터로 남음 — 추가되면 연동
+- [x] 채널 카드(메인 화면 그리드)에 실측값(`gas`/`h2`/`co`/`pressure`의 `value`·`slope`) 표시 추가 — `AppStateContext`가 `channels`도 같이 노출, `ChannelCard`가 링 아래에 렌더
+- [x] **`services/deriveAppState.ts` 판정 버그 수정(2026-08-24)** — 시뮬레이터(`/v1/simulation/...`)로 VOC_RISE를 직접 걸어서 재현: `status`는 "STABLE"로 안 움직이는데 `stage`는 "GAS_LEAK"으로 바뀌고 `conditions`엔 `VOC_RISE`가 뜨는 상황을 확인. 기존엔 `status`만 보고 판정해서 이런 경우 화면이 계속 "정상"으로 보였음(조기경보 앱 목적에 정면으로 어긋남) — `status`·`stage` 중 더 심각한 쪽을 취하도록 수정, `latched`도 우선 반영. 상세 근거는 `deriveAppState.ts` 주석 참고, 정확한 status/stage 관계는 여전히 백엔드 확인 필요(backend-requests.md §2.2)
