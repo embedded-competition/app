@@ -5,17 +5,32 @@
 // 화면은 "정상"이 아니라 "연결된 기기 없음"을 보여줘야 한다. 데이터 없이 기본값을 "NORMAL"로
 // 깔아두면 마치 실제로 정상 판정을 받은 것처럼 보이는데, 그건 거짓이다.
 //
+// telemetrySource는 raw DeviceCurrentResponse를 주고, 여기서 deriveAppState()로 상태를
+// 뽑는다 — channels(gas/h2/co/pressure의 실측 value·slope)도 같이 노출해서 채널 카드가
+// 판정 상태 문구뿐 아니라 실제 숫자도 보여줄 수 있게 한다.
+//
 // 예전에는 이걸 화면마다 useState로 따로 들고 있어서(hooks/useAppState.ts) 화면 간에 상태가
 // 공유되지 않는 버그가 있었다 — Context로 올려서 앱 전체가 같은 값을 보게 한다.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AppState } from "@/mocks/channels";
 import { noTelemetrySource, type TelemetrySource } from "@/services/telemetrySource";
+import { deriveAppState } from "@/services/deriveAppState";
+import type { ChannelReading, DeviceCurrentResponse } from "@/types/telemetry";
+
+interface LiveChannels {
+  gas: ChannelReading | null;
+  h2: ChannelReading | null;
+  co: ChannelReading | null;
+  pressure: ChannelReading | null;
+}
 
 interface AppStateContextValue {
   /** null이면 분류할 데이터가 없다는 뜻 — 화면은 이걸 "정상"으로 착각해서 보여주면 안 된다. */
   state: AppState | null;
   /** true면 telemetrySource가 실제로 값을 보내고 있다는 뜻. */
   isLive: boolean;
+  /** 채널별 실측값(gas/h2/co/pressure). 데이터 없으면 null. */
+  channels: LiveChannels | null;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -27,16 +42,19 @@ export function AppStateProvider({
   children: ReactNode;
   source?: TelemetrySource;
 }) {
-  const [remoteState, setRemoteState] = useState<AppState | null>(null);
+  const [remoteData, setRemoteData] = useState<DeviceCurrentResponse | null>(null);
 
-  useEffect(() => source.subscribe(setRemoteState), [source]);
+  useEffect(() => source.subscribe(setRemoteData), [source]);
 
   const value = useMemo<AppStateContextValue>(
     () => ({
-      state: remoteState,
-      isLive: remoteState !== null,
+      state: remoteData ? deriveAppState(remoteData) : null,
+      isLive: remoteData !== null,
+      channels: remoteData
+        ? { gas: remoteData.gas, h2: remoteData.h2, co: remoteData.co, pressure: remoteData.pressure }
+        : null,
     }),
-    [remoteState],
+    [remoteData],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

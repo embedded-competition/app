@@ -27,9 +27,19 @@ import { PeriodSegment } from "@/components/period/PeriodSegment";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { RecordAccordion, type RecordItem } from "@/components/record/RecordAccordion";
 import { ADDRESS_MAIN, CHANNELS, STATE_CONTENT, type ClassifiedState } from "@/mocks/channels";
+import type { ChannelReading } from "@/types/telemetry";
 import { getPeriodSummary } from "@/mocks/period";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useEvents } from "@/hooks/useEvents";
+
+// 화면 채널 키 → 실 API 응답의 채널 키. temp·leak은 telemetry/current에 대응 필드가 없다
+// (interface.md §3 참고) — 그 둘은 liveReading이 항상 undefined로 남는다.
+const CHANNEL_API_FIELD: Record<string, "gas" | "h2" | "co" | "pressure" | undefined> = {
+  voc: "gas",
+  h2: "h2",
+  co: "co",
+  pres: "pressure",
+};
 
 function formatEventTime(iso: string) {
   const d = new Date(iso);
@@ -43,7 +53,7 @@ export default function MainScreen() {
   const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
-  const { state, isLive } = useAppState();
+  const { state, isLive, channels } = useAppState();
   const { period, setPeriod } = usePeriod();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { items: liveEvents, truncated: liveEventsTruncated, loading: eventsLoading } = useEvents();
@@ -174,6 +184,11 @@ export default function MainScreen() {
                 key={ch.key}
                 channel={ch}
                 content={isLivePeriod ? ch.states[liveState] : periodSummary!.channels[ch.key]}
+                liveReading={
+                  isLivePeriod && channels
+                    ? ((CHANNEL_API_FIELD[ch.key] && channels[CHANNEL_API_FIELD[ch.key]!]) as ChannelReading | null)
+                    : null
+                }
                 onPress={() => router.push(`/detail/${ch.key}`)}
               />
             ))}
