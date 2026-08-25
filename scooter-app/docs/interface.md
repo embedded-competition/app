@@ -62,7 +62,7 @@ interface TelemetrySource {
 | `water` | `water`(boolean, 최상위) | 있음 — nullable 아니고 기본 `false` | 물·누액 카드 | S5, 확증 보너스. 이제 채널 객체가 아니라 단순 불리언이라 카드 표시 로직 조정 필요 |
 | `signature.{rise,hold,noRecover,holdS}` | `conditions[]`(배열) | **모양이 완전히 다름** — 3개 불리언+지속시간 조합이 아니라 enum 배열 | 항목 상세 "판단 근거 3요소" | A4. `conditions`로 "판단 근거 3요소" UI를 어떻게 다시 표현할지 설계 필요(예: `CO_RISE`가 있으면 "갑자기 늘었나"에 해당한다고 볼 수 있는지 등 1:1 대응이 명확치 않음) |
 | `module.{nodeId,seq,battMv,rssi,snr,lastSeen}` | **일부만 부활**: `GET /v1/devices/{mac}` → `{sensorCheck: "OK"\|"FAULT"\|null}` | "센서 점검"만 연결됨(2026-08-19, `services/sensorCheck.ts`+`hooks/useSensorCheck.ts`) | 설정 패널 "감지 모듈 배터리·연결 상태·센서 점검" | 배터리·RSSI·SNR·마지막 수신 시각은 여전히 없음 — `mocks/channels.ts`의 `MODULE_STATUS` 목데이터 그대로(backend-requests.md §1.1에 나머지 요청해둠) |
-| (fleet 비교, `CompareRow.tsx`) | **엔드포인트 자체가 없어짐** | 사라짐 | 항목 상세 "같은 모델과 비교" | 예전 스펙엔 `GET /devices/{deviceId}/fleet-comparison`이 있었는데 새 스펙 8개 엔드포인트 중엔 없다 |
+| (fleet 비교) | **엔드포인트 자체가 없어짐** | 2026-08-24 화면에서 완전히 삭제(`CompareRow.tsx` 컴포넌트 파일도 지움) | ~~항목 상세 "같은 모델과 비교"~~ | 예전 스펙엔 `GET /devices/{deviceId}/fleet-comparison`이 있었는데 새 스펙 8개 엔드포인트 중엔 없다. 목데이터로만 존재하던 걸 정리 — 나중에 API가 생기면 그때 다시 추가 |
 | `location` | `GET /v1/devices/{mac}/location` (별도 엔드포인트) | 있음, 단 **`telemetry/current` 응답에서 빠지고 전용 엔드포인트로 분리됨** — `{lat, lon, at}` | 실시간 화면 지도 | O1 확정대로 GPS. 지금은 폰 GPS로 대체 중(`DeviceMap.tsx`) — 연동 시 이 엔드포인트를 별도로 폴링해야 함(telemetry 폴링에 얹혀오지 않음) |
 
 **새로 생겨서 화면에 아직 안 쓰는 것**: `GET /v1/devices/{mac}/telemetry/peaks`(기간 중 최고치 요약), `GET /v1/devices/{mac}/sensors/{sensor}/detail`(채널별 기간·눈금 차트, `interval`=5m~1d) — 둘 다 [`../../backend-requests.md`](../../backend-requests.md) 1.1에서 요청했던 "기간 범위 조회"가 정확히 반영된 것으로 보임. 메인·상세보기의 "오늘/최근 7일/기간선택" 목데이터(`mocks/period.ts`)를 이 엔드포인트로 교체할 수 있어 보인다.
@@ -138,7 +138,7 @@ interface DeviceRegistry {
 3. `services/telemetrySource.ts`에 HTTP 폴링 구현체(`GET /v1/devices/{mac}/telemetry/current` 반복 호출) 추가, `noTelemetrySource`는 개발/오프라인 폴백으로만 남김
 4. `services/deviceRegistry.ts` — **등록 엔드포인트가 없다는 걸 확인했으니(§6), HTTP 구현체를 새로 만드는 게 아니라 오히려 지금의 `localOnlyDeviceRegistry`(로컬 저장)가 최종 형태에 가까울 수 있다** — `managementPhone`을 어디서 받을지만 서버팀에 확인 후 결정
 5. ~~`services/alarmRelease.ts`에 실제 HTTP 구현체 추가~~ — 2026-08-19 완료. `services/telemetrySource.ts`(실시간 상태 폴링)·`services/events.ts`(기록)도 같이 실 API로 연결함
-6. `components/settings/SettingsPanel.tsx`의 모듈 상태 행 — "센서 점검"은 실 API 연결 완료(2026-08-19), 배터리·연결 상태는 아직 대응 엔드포인트 없어서 목데이터 유지. `components/detail/CompareRow.tsx`(fleet 비교)는 대응 엔드포인트가 여전히 없으니 화면에서 어떻게 할지(숨김/자리만 유지/서버팀에 부활 요청) 결정 필요
+6. `components/settings/SettingsPanel.tsx`의 모듈 상태 행 — "센서 점검"은 실 API 연결 완료(2026-08-19), 배터리·연결 상태는 아직 대응 엔드포인트 없어서 목데이터 유지. fleet 비교(`CompareRow.tsx`)·판단근거(`SignatureRow.tsx`)는 대응 엔드포인트가 없어서 2026-08-24에 화면·컴포넌트 파일 다 삭제함 — 나중에 API가 생기면 그때 다시 추가
 7. 이 문서·`mocks/channels.ts`의 하드코딩 문구를 §3.1 결정(문구를 서버가 줄지 앱이 만들지 — `conditions` 배열 기반으로는 더더욱 앱이 만들어야 할 가능성이 커짐)에 따라 갱신
 8. `mocks/period.ts`를 `GET /sensors/{sensor}/detail`·`GET /telemetry/peaks`로 교체(§3 맨 아래) — "최근 7일"류 기간 조회가 이제 실제로 가능해 보임
 9. `api-spec.md`를 2026-08-12 스펙 기준으로 전면 재작성(엔드포인트 URL·요청 예시가 전부 구버전이라 지금은 이 문서 쪽을 우선해야 함)

@@ -1,6 +1,14 @@
 // 항목 상세 화면. planning/prototypes/b-live-monitor.html 화면 2를 그대로 옮긴 것.
-// 게이지·차트·판단근거·비교는 상태 단위(STATE_CONTENT) 공통 템플릿이고, 채널마다 다른 건
-// 이름·설명·각주뿐이다 — 프로토타입도 배터리 가스(voc) 채널 하나만 실제로 디자인했기 때문에 그 구조를 그대로 따른다.
+//
+// 2026-08-24: 라이브 모드(판정·게이지·차트)는 더 이상 상태 단위 공통 템플릿이 아니라 **채널별로
+// 실측값을 반영**한다 — 이 채널이 지금 conditions[]에 걸려있는지로 색·문구를 정하고, 최근 1분
+// 차트는 telemetry/current를 폴링할 때마다(services/telemetrySource.ts, 5초 간격)
+// hooks/useChannelHistory.ts가 로컬에 쌓은 실제 시계열을 그린다(서버가 이력 API를 따로 안 줘서
+// 클라이언트에서 누적). 다만 게이지 퍼센트(gaugePct)는 서버가 임계값을 안 줘서(A1: 클라이언트가
+// 임계값을 굴리면 안 됨) 정확한 비율을 계산할 수 없다 — 정상/주의/위험 3단 앵커(22/52/88%)에
+// 그대로 매핑하는 근사치다. 판단근거(SignatureRow)·같은 모델 비교(CompareRow) 섹션은 대응
+// API가 아예 없어서(목데이터로만 존재) 삭제했다 — 컴포넌트 파일 자체도 지웠다. temp·leak
+// 채널은 telemetry/current에 대응 필드가 없어서(interface.md §3) 전부 목데이터로 남는다.
 //
 // 기간 조회 중(period !== "live")일 땐 이 라이브 화면을 그대로 보여주지 않는다 — 게이지·판단근거·
 // 비교는 전부 "지금" 개념이라 기간과 섞으면 뭘 보고 있는지 헷갈린다(B안 확정). 대신
@@ -12,13 +20,21 @@ import { useScheme } from "@/contexts/ThemeModeContext";
 import { colors } from "@/constants/tokens";
 import { useAppState } from "@/contexts/AppStateContext";
 import { usePeriod } from "@/contexts/PeriodContext";
-import { CHANNELS, CHANNEL_EXPLAIN, CHANNEL_FOOTNOTE, OWNER_NAME, STATE_CONTENT, type ClassifiedState } from "@/mocks/channels";
+import {
+  CHANNELS,
+  CHANNEL_EXPLAIN,
+  CHANNEL_FOOTNOTE,
+  OWNER_NAME,
+  STATE_CONTENT,
+  type ClassifiedState,
+  type Level,
+} from "@/mocks/channels";
+import { CHANNEL_API_FIELD, deriveChannelLevel } from "@/constants/channelApiMap";
+import { useChannelHistory } from "@/hooks/useChannelHistory";
 import { getPeriodSummary } from "@/mocks/period";
 import { RichText } from "@/components/common/RichText";
 import { ChannelGauge } from "@/components/channel/ChannelGauge";
 import { TrendChart } from "@/components/chart/TrendChart";
-import { SignatureRow } from "@/components/detail/SignatureRow";
-import { CompareRow } from "@/components/detail/CompareRow";
 // 실 백엔드(Orca Backend)는 raw 센서값(sraw/mv/baseline)을 아예 안 보낸다 — 정규화된 devZ/slope만
 // 준다. "센서 원본 수치 보기" 접이식은 애초에 보여줄 실데이터가 없는 기능이라 잠시 꺼둔다.
 // backend-requests.md·api-spec.md 참고. 완전히 지우지는 않음 — 나중에 devZ/slope 기반으로
@@ -31,16 +47,27 @@ import { PeriodSegment } from "@/components/period/PeriodSegment";
 const TONE_KEY = { ok: "positive", warn: "cautionary", bad: "negative" } as const;
 const ACC_KEY = { ok: "accGreen", warn: "accOrange", bad: "accRed" } as const;
 const LEVEL_TEXT = { ok: "정상", warn: "주의", bad: "위험" } as const;
+const LEVEL_VERDICT_TEXT: Record<Level, string> = {
+  ok: "평소와 같습니다",
+  warn: "평소보다 빠르게 늘고 있습니다",
+  bad: "위험 — 즉시 확인이 필요합니다",
+};
+const LEVEL_GAUGE_PCT: Record<Level, number> = { ok: 22, warn: 52, bad: 88 };
 
 export default function ChannelDetailScreen() {
   const { channel: channelKey } = useLocalSearchParams<{ channel: string }>();
   const scheme = useScheme();
   const t = colors[scheme];
-  const { state, isLive } = useAppState();
+  const { state, isLive, channels, conditions } = useAppState();
   const { period } = usePeriod();
 
   const channel = CHANNELS.find((c) => c.key === channelKey) ?? CHANNELS[0];
   const periodSummary = period.kind === "live" ? null : getPeriodSummary(period.kind === "custom" ? "week" : period.kind);
+
+  // 훅 규칙상 이른 return 전에 무조건 불러야 한다 — channel이 temp/leak이면 apiField가
+  // undefined라 이 훅은 내부적으로 아무 것도 안 쌓고 빈 배열을 유지한다.
+  const apiField = CHANNEL_API_FIELD[channel.key];
+  const history = useChannelHistory(apiField);
 
   // 기간 조회는 라이브 연결 여부와 무관한 목데이터 미리보기라, "연결된 기기 없음" 게이트는
   // period가 "지금"일 때만 적용한다(메인 화면과 동일한 원칙).
@@ -148,8 +175,38 @@ export default function ChannelDetailScreen() {
   // 라이브 모드(period.kind === "live") — 지금 상태 그대로. 위 두 게이트가 null/FAULT를
   // 이미 걸러냈으니 여기선 항상 ClassifiedState(NORMAL/WATCH/ALARM)다.
   const content = STATE_CONTENT[state as ClassifiedState];
-  const tone = t[TONE_KEY[content.verdictLevel]];
-  const acc = t[ACC_KEY[content.verdictLevel]];
+
+  // "이 채널을 서버 판정 기준으로 분류할 수 있는가"(hasLiveClassification)와 "숫자 실측값이
+  // 있는가"(hasNumericReading)는 다르다 — 물·누액(leak)은 value/slope 같은 숫자 채널이 없지만
+  // conditions[]에 "WATER"로 뜨니까 그걸로 분류는 할 수 있다. 이 둘을 하나로 묶어서 apiField
+  // 없는 채널은 통째로 "실측 데이터 없음"(=예전처럼 전체 상태색을 그대로 씀) 취급하던 게 버그였다
+  // — leak이 늘 조건 체크를 건너뛰고 전체 state 색을 그대로 물려받았다(2026-08-24 수정).
+  const hasLiveClassification = channels !== null;
+  const hasNumericReading = hasLiveClassification && apiField !== undefined;
+  const liveReading = hasNumericReading ? channels![apiField!] : null;
+  const channelLevel: Level = hasLiveClassification
+    ? (deriveChannelLevel(channel.key, state as ClassifiedState, conditions, true) ?? "ok")
+    : content.verdictLevel;
+
+  const tone = t[TONE_KEY[channelLevel]];
+  const acc = t[ACC_KEY[channelLevel]];
+
+  const channelVerdictText = hasLiveClassification ? LEVEL_VERDICT_TEXT[channelLevel] : content.verdict;
+  const channelLevelSentence =
+    channelLevel === "ok" ? "특별히 하실 일은 없습니다." : channelLevel === "warn" ? "계속 지켜보고 있어요." : "즉시 확인이 필요합니다.";
+  const channelEasyText = !hasLiveClassification
+    ? content.easy
+    : liveReading && liveReading.value !== null
+      ? `${channel.name} 값이 지금 ${liveReading.value.toFixed(1)}${
+          liveReading.slope !== null ? `, 분당 ${liveReading.slope >= 0 ? "+" : ""}${liveReading.slope.toFixed(1)}씩` : ""
+        } 움직이고 있습니다. ${channelLevelSentence}`
+      : hasNumericReading
+        ? "아직 이 채널의 값을 받지 못했습니다."
+        : `${channel.name}이(가) 지금 ${channelLevel === "ok" ? "평소와 같습니다." : "감지됐습니다."} ${channelLevelSentence}`;
+  const gaugePct = hasLiveClassification ? LEVEL_GAUGE_PCT[channelLevel] : content.gaugePct;
+  const pillTitle = hasLiveClassification ? LEVEL_TEXT[channelLevel] : content.pillT;
+  const pillValue =
+    hasNumericReading && liveReading && liveReading.value !== null ? `실측 ${liveReading.value.toFixed(1)}` : content.pillV;
 
   return (
     <>
@@ -170,43 +227,51 @@ export default function ChannelDetailScreen() {
           </Text>
           <View style={styles.verdictRow}>
             <View style={[styles.dot, { backgroundColor: tone }]} />
-            <Text style={{ color: acc, fontSize: 12.5, fontWeight: "600" }}>{content.verdict}</Text>
+            <Text style={{ color: acc, fontSize: 12.5, fontWeight: "600" }}>{channelVerdictText}</Text>
           </View>
         </View>
 
         <View style={[styles.easy, { backgroundColor: t.fillAlt }]}>
-          <RichText text={content.easy} style={{ color: t.labelNormal, fontSize: 13, lineHeight: 21 }} />
+          <RichText text={channelEasyText} style={{ color: t.labelNormal, fontSize: 13, lineHeight: 21 }} />
         </View>
 
         <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>이게 무슨 신호인가요</Text>
         <RichText text={CHANNEL_EXPLAIN[channel.key]} style={{ color: t.labelNeutral, fontSize: 12.5, lineHeight: 22 }} />
 
         <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>지금 얼마나 새고 있나요</Text>
-        <ChannelGauge pct={content.gaugePct} level={content.verdictLevel} pillTitle={content.pillT} pillValue={content.pillV} />
+        <ChannelGauge pct={gaugePct} level={channelLevel} pillTitle={pillTitle} pillValue={pillValue} />
         <Text style={[styles.hint, { color: t.labelAlt }]}>
-          양 자체보다 <Text style={{ fontWeight: "700" }}>얼마나 빠르게 늘어나는지</Text>로 판단합니다.
+          {hasLiveClassification
+            ? "이 게이지는 서버가 판정한 정상/주의/위험 단계를 3등분해서 보여줍니다(정확한 임계값은 서버만 압니다)."
+            : "양 자체보다 얼마나 빠르게 늘어나는지로 판단합니다."}
         </Text>
 
         <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>최근 1분 동안</Text>
-        <TrendChart series={content.line} tone={tone} />
-        <Text style={[styles.hint, { color: t.labelAlt }]}>
-          점선은 이 킥보드가 평소에 머무는 자리입니다. 파란 선이{" "}
-          <Text style={{ fontWeight: "700" }}>점선에서 크게 벌어질수록</Text> 이상 신호입니다.
-        </Text>
+        {hasNumericReading ? (
+          history.length >= 2 ? (
+            <>
+              <TrendChart series={history} tone={tone} baselineValue={history[0]} legendLabels={["실측값", "1분 전 값"]} />
+              <Text style={[styles.hint, { color: t.labelAlt }]}>
+                5초마다 서버에서 받은 실제 값을 이어서 그렸습니다. 점선은 1분 전 값입니다.
+              </Text>
+            </>
+          ) : (
+            <View style={[styles.collecting, { backgroundColor: t.fillAlt }]}>
+              <Text style={{ color: t.labelAlt, fontSize: 12 }}>실시간 데이터를 모으고 있어요… (5초마다 갱신)</Text>
+            </View>
+          )
+        ) : (
+          <>
+            <TrendChart series={content.line} tone={tone} />
+            <Text style={[styles.hint, { color: t.labelAlt }]}>
+              점선은 이 킥보드가 평소에 머무는 자리입니다. 파란 선이{" "}
+              <Text style={{ fontWeight: "700" }}>점선에서 크게 벌어질수록</Text> 이상 신호입니다.
+            </Text>
+          </>
+        )}
 
         <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>기간 조회</Text>
         <PeriodSegment variant="detail" />
-
-        <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>경보는 이렇게 판단합니다</Text>
-        <Text style={[styles.sectionSub, { color: t.labelAlt }]}>
-          세 가지가 모두 맞아야 울립니다 — 냄새 한 번 났다고 울리지 않습니다
-        </Text>
-        <SignatureRow sig={content.sig} sigOn={content.sigOn} />
-        <Text style={[styles.hint, { color: t.labelAlt }]}>{content.sigHint}</Text>
-
-        <Text style={[styles.sectionTitle, { color: t.labelStrong }]}>같은 모델과 비교</Text>
-        <CompareRow avg={content.avg} mine={content.mine} mineColor={acc} />
-        <RichText text={content.cmp} style={{ color: t.labelNeutral, fontSize: 12, marginTop: 10, lineHeight: 20 }} />
 
         {/* 원본 수치 접이식 — 실서버가 raw 값을 안 줘서 잠시 꺼둠. 위 import 주석 참고.
         <RawValuesDisclosure
@@ -241,6 +306,7 @@ const styles = StyleSheet.create({
   verdictRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
   easy: { borderRadius: 14, padding: 14, marginTop: 14 },
+  collecting: { borderRadius: 14, padding: 16, marginTop: 10, alignItems: "center" },
   sectionTitle: { fontSize: 14, fontWeight: "600", marginTop: 22, marginBottom: 3 },
   sectionSub: { fontSize: 11.5, marginBottom: 4 },
   hint: { fontSize: 11, marginTop: 8, lineHeight: 17 },

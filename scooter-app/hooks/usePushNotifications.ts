@@ -11,7 +11,7 @@
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { useDevice } from "@/contexts/DeviceContext";
-import { noPushTokenService } from "@/services/pushToken";
+import { httpPushTokenService } from "@/services/pushToken";
 
 export function usePushNotifications() {
   const { pairedMac } = useDevice();
@@ -60,7 +60,7 @@ export function usePushNotifications() {
           projectId ? { projectId } : undefined,
         );
         if (!cancelled) {
-          await noPushTokenService.register(pairedMac, token);
+          await httpPushTokenService.register(pairedMac, token);
         }
       } catch {
         // 권한 거부·시뮬레이터·구버전 dev-client 등 — 조용히 무시.
