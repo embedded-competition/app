@@ -26,20 +26,13 @@ import { ChannelCard } from "@/components/channel/ChannelCard";
 import { PeriodSegment } from "@/components/period/PeriodSegment";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { RecordAccordion, type RecordItem } from "@/components/record/RecordAccordion";
-import { ADDRESS_MAIN, CHANNELS, STATE_CONTENT, type ClassifiedState } from "@/mocks/channels";
+import { ADDRESS_MAIN, CHANNELS, STATE_CONTENT, type ChannelStateContent, type ClassifiedState } from "@/mocks/channels";
 import type { ChannelReading } from "@/types/telemetry";
+import { CHANNEL_API_FIELD, deriveChannelLevel } from "@/constants/channelApiMap";
 import { getPeriodSummary } from "@/mocks/period";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useEvents } from "@/hooks/useEvents";
-
-// 화면 채널 키 → 실 API 응답의 채널 키. temp·leak은 telemetry/current에 대응 필드가 없다
-// (interface.md §3 참고) — 그 둘은 liveReading이 항상 undefined로 남는다.
-const CHANNEL_API_FIELD: Record<string, "gas" | "h2" | "co" | "pressure" | undefined> = {
-  voc: "gas",
-  h2: "h2",
-  co: "co",
-  pres: "pressure",
-};
+import { formatAgo } from "@/utils/time";
 
 function formatEventTime(iso: string) {
   const d = new Date(iso);
@@ -53,7 +46,7 @@ export default function MainScreen() {
   const scheme = useScheme();
   const t = colors[scheme];
   const insets = useSafeAreaInsets();
-  const { state, isLive, channels } = useAppState();
+  const { state, isLive, channels, conditions, at } = useAppState();
   const { period, setPeriod } = usePeriod();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { items: liveEvents, truncated: liveEventsTruncated, loading: eventsLoading } = useEvents();
@@ -123,9 +116,27 @@ export default function MainScreen() {
   const periodSummary = isLivePeriod ? null : getPeriodSummary(period.kind === "custom" ? "week" : period.kind);
   const liveState = state as ClassifiedState; // 위 두 게이트가 null/FAULT를 이미 걸러냈음을 보장함
 
+  // 채널 카드는 채널마다 다른 상태를 보여줘야 한다 — 예전엔 전체 state만 보고 6채널이
+  // 전부 똑같이 물들었다(voc만 올랐는데 h2·물누액까지 주의/위험으로 보이던 버그, 2026-08-24
+  // 수정). conditions[]에 이 채널이 안 걸려있으면 그 채널은 NORMAL 버킷을 쓴다.
+  //
+  // "채널마다 다른 상태를 낼 수 있는가"는 apiField(숫자 실측값)가 있는지와는 별개다 — 물·누액
+  // (leak)은 value/slope 같은 숫자 채널이 없지만 conditions[]에 "WATER"로 뜨니까 그걸로
+  // 판정할 수 있다. apiField 유무로 이 판단 자체를 걸렀던 게 버그였다(leak이 실측 데이터 없다는
+  // 이유로 조건 체크를 건너뛰고 전체 상태색을 그대로 썼음) — channels!==null(폴링 한 번이라도
+  // 됐는지)만 보고 판정하도록 고쳤다.
+  function channelCardContent(ch: (typeof CHANNELS)[number]): ChannelStateContent {
+    if (!isLivePeriod) return periodSummary!.channels[ch.key];
+    if (channels === null) return ch.states[liveState];
+    const level = deriveChannelLevel(ch.key, liveState, conditions, true);
+    return ch.states[level === "ok" ? "NORMAL" : liveState];
+  }
+
   const ribbonContent = isLivePeriod ? STATE_CONTENT[liveState] : periodSummary!.ribbon;
   const pinLevel = isLivePeriod ? STATE_CONTENT[liveState].pinLevel : periodSummary!.channels[periodSummary!.peakChannelKey].lv;
-  const addrSub = isLivePeriod ? STATE_CONTENT[liveState].addr2 : `${periodSummary!.rangeLabel} · 실시간 아님`;
+  // 예전엔 "충전 중 · 마지막 수신 42초 전"이 고정 문구였다 — "충전 중"은 뒷받침할 API가 없어서
+  // 뺐고, "마지막 수신"은 실제 at(관측 시각)으로 계산한다(2026-08-24).
+  const addrSub = isLivePeriod ? `마지막 수신 ${formatAgo(at)}` : `${periodSummary!.rangeLabel} · 실시간 아님`;
   const rateLabel = isLivePeriod ? STATE_CONTENT[liveState].rateLabel : "· 이 기간 중 최고치";
   const sectionSub = isLivePeriod
     ? "탭하면 자세히 볼 수 있어요 · 양보다 얼마나 빠르게 변하는지를 봅니다"
@@ -183,7 +194,7 @@ export default function MainScreen() {
               <ChannelCard
                 key={ch.key}
                 channel={ch}
-                content={isLivePeriod ? ch.states[liveState] : periodSummary!.channels[ch.key]}
+                content={channelCardContent(ch)}
                 liveReading={
                   isLivePeriod && channels
                     ? ((CHANNEL_API_FIELD[ch.key] && channels[CHANNEL_API_FIELD[ch.key]!]) as ChannelReading | null)
@@ -192,6 +203,9 @@ export default function MainScreen() {
                 onPress={() => router.push(`/detail/${ch.key}`)}
               />
             ))}
+            {/* 채널 수가 홀수면(온도 삭제 후 5개) 마지막 카드가 flexGrow로 한 줄을 다 차지해서
+                두 칸짜리처럼 보인다 — 안 보이는 자리채움으로 오른쪽을 비워둔다. */}
+            {CHANNELS.length % 2 === 1 && <View style={styles.gridSpacer} />}
           </View>
 
           <RecordAccordion summary={recordSummary} items={recordItems} />
@@ -236,4 +250,5 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: "600", marginTop: 22, marginBottom: 3 },
   sectionSub: { fontSize: 11.5, marginBottom: 11 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 11 },
+  gridSpacer: { flexBasis: "47%", flexGrow: 1 },
 });

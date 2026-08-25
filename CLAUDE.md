@@ -54,7 +54,7 @@ scooter-app/
       record.tsx                기록 — 평소엔 요약 카드+최근 기록, `?date=` 쿼리로 들어오면 그 날짜 기록만 필터링
       stats.tsx                  통계 — 날짜 이동(DateNav) + 이상유무 요약 + 센서별 일별 그래프(MiniLineChart) + "이 날짜 기록 보기"→record로 이동
       settings.tsx               설정 — 기기등록/테마/알림/자동차단/위치등록/경보해제
-    detail/[channel].tsx        항목 상세 — 판정 → 요약 → 설명 → 게이지 → 추이 → 판단근거 → 비교 → 원본수치(접이식)
+    detail/[channel].tsx        항목 상세 — 판정 → 요약 → 설명 → 게이지 → 추이 → 원본수치(접이식). 판단근거·비교 섹션은 2026-08-24 삭제(대응 API 없음)
     alarm.tsx                   경보 전체화면
 
   components/                 화면 조립용 UI 블록. 화면(app/)에서 콘텐츠를 받아 그리기만 한다
@@ -68,8 +68,6 @@ scooter-app/
     channel/ChannelGauge.tsx    평소/주의/위험 게이지(트랙+노브+말풍선)
     channel/RawValuesDisclosure.tsx  "센서 원본 수치 보기" 접이식
     chart/TrendChart.tsx        최근 1분 추이 (영역+선+점선 기준선, react-native-svg)
-    detail/SignatureRow.tsx     판단 근거 3요소(급변/지속/무회복) 박스
-    detail/CompareRow.tsx       같은 모델 비교 2열 박스
     alarm/AlarmPulseOverlay.tsx  경보 화면 상하 명멸 그라데이션
     common/RichText.tsx         `**볼드**` 마크만 지원하는 최소 리치텍스트 (프로토타입 <b> 이식용)
     stats/DateNav.tsx           통계 탭 상단 날짜 이동(◀ 날짜 ▶), 오늘 이후로는 못 감
@@ -91,7 +89,7 @@ scooter-app/
 
 **원칙**:
 - 화면(`app/`)은 `mocks/channels.ts`의 콘텐츠를 컴포넌트에 넘기기만 하고, 판정 로직(임계값 계산 등)은 절대 클라이언트에 두지 않는다 — 판정은 노드/서버 책임([A1](../planning/decisions/algorithm.md#a1), [C5](../planning/decisions/collaboration.md#c5)). 상태는 항상 `services/telemetrySource.ts`를 통해서만 "받고", 클라이언트가 raw 값으로 계산하지 않는다.
-- 항목 상세 화면의 게이지·차트·판단근거·비교 섹션은 **채널별이 아니라 상태(정상/주의/경보) 단위** 공통 콘텐츠다 — 프로토타입도 배터리 가스(voc) 채널 하나만 실제로 디자인했고 나머지 채널은 이름·설명·각주만 다르다. 이 구조를 임의로 채널별로 쪼개지 말 것.
+- 항목 상세 화면의 판단근거·비교 섹션은 여전히 **상태(정상/주의/경보) 단위** 공통 목데이터다(대응 API 없음) — 프로토타입도 배터리 가스(voc) 채널 하나만 실제로 디자인했고 나머지 채널은 이름·설명·각주만 다르던 구조를 그대로 이어받았다. **단, 2026-08-24부터 판정·게이지·"최근 1분" 차트는 채널별로 실측값을 반영한다** — 이 채널이 지금 `conditions[]`에 걸려있는지로 색·문구를 정하고(`constants/channelApiMap.ts`), 차트는 `hooks/useChannelHistory.ts`가 폴링마다 쌓은 실제 시계열을 그린다. `temp`·`leak` 채널은 telemetry/current에 대응 필드가 없어서 여전히 상태 단위 목데이터로 남는다.
 - 서버 연동 계약(필드별 상태·화면 사용처·문구 생성 책임 문제)은 [`scooter-app/docs/interface.md`](scooter-app/docs/interface.md)에 따로 정리했다 — 서버/임베디드 팀과 논의할 때는 이 문서를 기준으로 한다. 실제 백엔드 엔드포인트 제안은 [`api-spec.md`](api-spec.md)(레포 최상위) 참고 — 둘 다 서버가 없는 지금 상태의 **제안**이지 확정 계약이 아니다.
 
 ## 데이터 흐름과 목데이터
